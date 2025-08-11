@@ -1,20 +1,196 @@
-{
-  "name": "Pour Charlène ❤️ Taylor",
-  "short_name": "Charlène & Taylor",
-  "start_url": "./charlene_taylor.html",
-  "display": "standalone",
-  "background_color": "#ff9a9e",
-  "theme_color": "#ff5f6d",
-  "icons": [
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>Pour Charlène ❤️ Taylor</title>
+<link rel="manifest" href="manifest.json" />
+<style>
+  body, html {
+    margin: 0; padding: 0; height: 100%;
+    background: linear-gradient(135deg, #ff9a9e, #fad0c4);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    color: #fff;
+    text-align: center;
+  }
+  h1 {
+    font-size: 3em;
+    margin-bottom: 0.2em;
+  }
+  h2 {
+    font-weight: 400;
+    margin-bottom: 1.5em;
+  }
+  button {
+    background: #fff;
+    color: #ff5f6d;
+    border: none;
+    padding: 1em 2em;
+    font-size: 1.5em;
+    border-radius: 50px;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(255, 95, 109, 0.6);
+    transition: background 0.3s ease;
+    user-select: none;
+  }
+  button:hover {
+    background: #ff5f6d;
+    color: #fff;
+  }
+  #heart {
+    font-size: 5em;
+    margin-bottom: 1em;
+    animation: beat 1s infinite;
+  }
+  @keyframes beat {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+  }
+  #gameArea {
+    margin-top: 2em;
+    position: relative;
+    width: 300px;
+    height: 300px;
+    background: #fff0f1;
+    border-radius: 20px;
+    box-shadow: 0 4px 15px rgba(255,95,109,0.4);
+    user-select: none;
+  }
+  #gameCanvas {
+    width: 100%; height: 100%;
+    border-radius: 20px;
+    display: block;
+  }
+  #score {
+    position: absolute;
+    top: 10px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 2em;
+    color: #ff5f6d;
+    font-weight: bold;
+    user-select: none;
+  }
+  #message {
+    margin-top: 1em;
+    font-size: 1.2em;
+    color: #fff;
+  }
+</style>
+</head>
+<body>
+  <div id="heart">❤️</div>
+  <h1>Charlène & Taylor</h1>
+  <h2>Un petit jeu pour toi 💕</h2>
+  <button id="startBtn">Jouer</button>
+  
+  <div id="gameArea" style="display:none;">
+    <div id="score">0</div>
+    <canvas id="gameCanvas" width="300" height="300"></canvas>
+  </div>
+  <div id="message"></div>
+
+<script>
+(() => {
+  const startBtn = document.getElementById('startBtn');
+  const gameArea = document.getElementById('gameArea');
+  const scoreElem = document.getElementById('score');
+  const message = document.getElementById('message');
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  let score = 0;
+  let gameInterval;
+  let targets = [];
+  let gameRunning = false;
+  const TARGET_RADIUS = 20;
+
+  function randomInt(min, max) {
+    return Math.floor(Math.random() * (max - min +1)) + min;
+  }
+
+  function drawTarget(t) {
+    ctx.beginPath();
+    ctx.fillStyle = '#ff5f6d';
+    ctx.shadowColor = 'rgba(255,95,109,0.7)';
+    ctx.shadowBlur = 10;
+    ctx.arc(t.x, t.y, TARGET_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.closePath();
+  }
+
+  function clearCanvas() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function spawnTarget() {
+    const x = randomInt(TARGET_RADIUS, canvas.width - TARGET_RADIUS);
+    const y = randomInt(TARGET_RADIUS, canvas.height - TARGET_RADIUS);
+    targets.push({ x, y });
+  }
+
+  function update() {
+    clearCanvas();
+    targets.forEach(drawTarget);
+  }
+
+  function hitTest(x, y) {
+    for(let i=0; i < targets.length; i++) {
+      const t = targets[i];
+      const dx = x - t.x;
+      const dy = y - t.y;
+      if(dx*dx + dy*dy <= TARGET_RADIUS*TARGET_RADIUS) {
+        targets.splice(i,1);
+        score++;
+        scoreElem.textContent = score;
+        if(score >= 10) {
+          endGame(true);
+        } else {
+          spawnTarget();
+          update();
+        }
+        return true;
+      }
     }
-  ]
-}
+    return false;
+  }
+
+  function endGame(won) {
+    clearInterval(gameInterval);
+    gameRunning = false;
+    gameArea.style.display = 'none';
+    startBtn.style.display = 'block';
+    message.textContent = won ? "Bravo Charlène ! Je t'aime ❤️" : "Game Over, essaie encore !";
+  }
+
+  function gameLoop() {
+    // Nothing here, animation handled on clicks
+  }
+
+  canvas.addEventListener('click', e => {
+    if(!gameRunning) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    if(!hitTest(x,y)) {
+      endGame(false);
+    }
+  });
+
+  startBtn.addEventListener('click', () => {
+    score = 0;
+    scoreElem.textContent = score;
+    message.textContent = '';
+    targets = [];
+    spawnTarget();
+    update();
+    gameArea.style.display = 'block';
+    startBtn.style.display = 'none';
+    gameRunning = true;
+    gameInterval = setInterval(gameLoop, 1000/60);
+  });
+})();
+</script>
+</body>
+</html>
