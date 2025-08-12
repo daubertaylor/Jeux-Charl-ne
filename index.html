@@ -2,251 +2,374 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Flappy Heart - Cartoon Style</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>Flappy Heart - Jeu pour toi ❤️</title>
 <style>
-  html, body {
-    margin: 0; padding: 0; overflow: hidden; height: 100%;
-    background: linear-gradient(to top, #87ceeb 0%, #b3d7ff 100%);
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  /* Reset et style de base */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body, html {
+    height: 100%;
+    background: linear-gradient(to top, #87ceeb 0%, #f0f8ff 100%);
+    overflow: hidden;
+    font-family: 'Comic Sans MS', cursive, sans-serif;
+    user-select: none;
   }
-  canvas {
-    display: block;
-    position: fixed;
-    top: 0; left: 0;
+
+  #gameContainer {
+    position: relative;
     width: 100vw;
     height: 100vh;
-    background: transparent;
+    overflow: hidden;
   }
-  #score {
-    position: fixed;
-    top: 20px; left: 50%;
-    transform: translateX(-50%);
-    font-size: 28px;
-    font-weight: bold;
-    color: #1e2a3a;
-    text-shadow: 1px 1px 3px #fff;
-    user-select: none;
+
+  canvas {
+    display: block;
+    background: #a0d8f7;
+  }
+
+  /* Décor - ville cartoon */
+  #background {
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    height: 35%;
+    background: linear-gradient(to top, #465a78 0%, #758dbf 100%);
+    box-shadow: inset 0 5px 15px rgba(0,0,0,0.2);
+    z-index: 1;
+  }
+
+  .building {
+    position: absolute;
+    bottom: 0;
+    background: #5c6a82;
+    border: 3px solid #394a63;
+    border-radius: 5px 5px 0 0;
+    box-shadow: inset 2px 2px 5px rgba(255,255,255,0.2);
+  }
+
+  /* Nuages */
+  #clouds {
+    position: absolute;
+    top: 10%;
+    width: 100%;
+    height: 30%;
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  .cloud {
+    position: absolute;
+    background: #fff;
+    border-radius: 50%;
+    opacity: 0.85;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,0.1));
+    animation: floatClouds linear infinite;
+  }
+
+  @keyframes floatClouds {
+    0% {transform: translateX(-150px);}
+    100% {transform: translateX(110vw);}
+  }
+
+  /* Message de fin */
+  #messageBox {
+    position: absolute;
+    top: 40%;
+    width: 100%;
+    text-align: center;
+    font-size: 1.8em;
+    color: #d6366e;
+    text-shadow: 1px 1px 2px #fff;
+    display: none;
     z-index: 10;
   }
-  #gameOverMessage {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(255 255 255 / 0.95);
-    padding: 30px 40px;
-    border-radius: 20px;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-    font-size: 24px;
-    color: #d63031;
-    font-weight: 700;
-    text-align: center;
-    max-width: 80vw;
-    user-select: none;
-    z-index: 20;
-    display: none;
-  }
+
+  /* Bouton rejouer */
   #restartBtn {
     margin-top: 20px;
-    padding: 12px 28px;
-    font-size: 20px;
-    font-weight: 700;
-    background: #d63031;
-    color: white;
+    padding: 10px 20px;
+    font-size: 1.2em;
     border: none;
-    border-radius: 15px;
+    background: #d6366e;
+    color: white;
+    border-radius: 8px;
     cursor: pointer;
-    box-shadow: 0 6px 18px rgba(214, 48, 49, 0.8);
+    box-shadow: 0 3px 6px #b32e61;
     transition: background 0.3s ease;
   }
   #restartBtn:hover {
-    background: #b82727;
+    background: #a62b51;
   }
+
 </style>
 </head>
 <body>
 
-<div id="score">Score: 0</div>
+<div id="gameContainer">
+  <canvas id="gameCanvas"></canvas>
 
-<div id="gameOverMessage">
-  <div>Ne baisse pas les bras,<br>chaque vol te rapproche du ciel.</div>
-  <button id="restartBtn">Rejouer</button>
+  <div id="background"></div>
+  <div id="clouds"></div>
+
+  <div id="messageBox">
+    <div>Ne t’inquiète pas, tu voleras plus haut la prochaine fois ! ❤️</div>
+    <button id="restartBtn">Rejouer</button>
+  </div>
 </div>
 
-<canvas id="gameCanvas"></canvas>
-
 <script>
-(() => {
+  // Configuration du jeu
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
-  const scoreEl = document.getElementById('score');
-  const gameOverMessage = document.getElementById('gameOverMessage');
-  const restartBtn = document.getElementById('restartBtn');
-
-  let W, H;
+  let width, height;
   function resize() {
-    W = window.innerWidth;
-    H = window.innerHeight;
-    canvas.width = W;
-    canvas.height = H;
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
   }
   resize();
   window.addEventListener('resize', resize);
 
-  // GAME VARIABLES
-  let bird, pipes, frameCount, score, gameOver, clouds, city;
+  // Personnage : cœur
+  class Heart {
+    constructor() {
+      this.x = width * 0.2;
+      this.y = height / 2;
+      this.radius = 20;
+      this.velocity = 0;
+      this.gravity = 0.6;
+      this.lift = -10;
+      this.maxVelocity = 12;
+      this.animationTick = 0;
+    }
 
-  // CONSTANTS
-  const gravity = 0.65;
-  const jumpForce = -11;
-  const pipeWidth = W * 0.12;
-  const pipeGap = H * 0.3;
-  const groundHeight = H * 0.12;
+    update() {
+      this.velocity += this.gravity;
+      if(this.velocity > this.maxVelocity) this.velocity = this.maxVelocity;
+      this.y += this.velocity;
 
-  // ======= Bird (Heart) Cartoon Style =======
-  function createBird() {
-    return {
-      x: W * 0.25,
-      y: H / 2,
-      baseSize: 45,
-      size: 45,
-      velocity: 0,
-      pulseDir: 1,
-      pulseSpeed: 0.025,
-      pulseScale: 0,
-      update() {
-        this.velocity += gravity;
-        this.y += this.velocity;
+      // Anim cœur battant doucement (scale pulsé)
+      this.animationTick += 0.1;
+      this.scale = 1 + 0.05 * Math.sin(this.animationTick * 3);
 
-        if(this.y + this.size/2 > H - groundHeight) {
-          this.y = H - groundHeight - this.size/2;
-          this.velocity = 0;
-          gameOver = true;
-        }
-        if(this.y - this.size/2 < 0) {
-          this.y = this.size/2;
-          this.velocity = 0;
-          gameOver = true;
-        }
-
-        // Pulsate (scale from 0.95 to 1.05)
-        this.pulseScale += this.pulseSpeed * this.pulseDir;
-        if(this.pulseScale > 0.05 || this.pulseScale < -0.05) this.pulseDir *= -1;
-        this.size = this.baseSize * (1 + this.pulseScale);
-      },
-      jump() {
-        this.velocity = jumpForce;
-      },
-      draw() {
-        const x = this.x;
-        const y = this.y;
-        const size = this.size;
-        const topCurveHeight = size * 0.35;
-
-        ctx.save();
-
-        // Shadow / Glow effect
-        ctx.shadowColor = 'rgba(219, 38, 38, 0.7)';
-        ctx.shadowBlur = size * 0.3;
-
-        // Draw heart shape
-        ctx.beginPath();
-        ctx.moveTo(x, y + topCurveHeight);
-        ctx.bezierCurveTo(x, y,
-          x - size / 2, y,
-          x - size / 2, y + topCurveHeight);
-        ctx.bezierCurveTo(x - size / 2, y + (size + topCurveHeight) / 2,
-          x, y + (size + topCurveHeight) / 1.1,
-          x, y + size);
-        ctx.bezierCurveTo(x, y + (size + topCurveHeight) / 1.1,
-          x + size / 2, y + (size + topCurveHeight) / 2,
-          x + size / 2, y + topCurveHeight);
-        ctx.bezierCurveTo(x + size / 2, y,
-          x, y,
-          x, y + topCurveHeight);
-        ctx.closePath();
-
-        // Gradient fill (cartoon style)
-        let grad = ctx.createLinearGradient(x - size/2, y, x + size/2, y + size);
-        grad.addColorStop(0, '#e63946');
-        grad.addColorStop(0.5, '#d62828');
-        grad.addColorStop(1, '#9b1b1b');
-        ctx.fillStyle = grad;
-        ctx.fill();
-
-        // Glossy highlight (cartoon)
-        let glossGrad = ctx.createRadialGradient(x - size*0.15, y - size*0.35, size*0.05, x - size*0.1, y - size*0.4, size*0.2);
-        glossGrad.addColorStop(0, 'rgba(255,255,255,0.7)');
-        glossGrad.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = glossGrad;
-        ctx.fill();
-
-        // White stroke outline for cartoon effect
-        ctx.lineWidth = 3;
-        ctx.shadowColor = 'transparent';
-        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-        ctx.stroke();
-
-        ctx.restore();
+      // Limites écran
+      if(this.y + this.radius > height) {
+        this.y = height - this.radius;
+        this.velocity = 0;
       }
-    };
+      if(this.y - this.radius < 0) {
+        this.y = this.radius;
+        this.velocity = 0;
+      }
+    }
+
+    fly() {
+      this.velocity = this.lift;
+    }
+
+    draw() {
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.scale(this.scale, this.scale);
+      // Dessiner cœur simple cartoon stylisé
+      ctx.fillStyle = '#e63946';
+      ctx.strokeStyle = '#b22234';
+      ctx.lineWidth = 2;
+
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.bezierCurveTo(-15, -15, -15, 10, 0, 25);
+      ctx.bezierCurveTo(15, 10, 15, -15, 0, 0);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.restore();
+    }
   }
 
-  // ======= Pipes (Wood Cartoon) =======
-  class Pipe {
+  // Obstacles : troncs d'arbre
+  class Trunk {
     constructor(x) {
       this.x = x;
-      this.width = pipeWidth;
-      this.gap = pipeGap;
-      const minHeight = 50;
-      this.topHeight = minHeight + Math.random() * (H - groundHeight - this.gap - minHeight);
-      this.passed = false;
+      this.width = 50;
+      this.gap = 140;
+      this.topHeight = Math.floor(Math.random() * (height / 2)) + 50;
       this.speed = 3;
     }
+
     update() {
       this.x -= this.speed;
+      if(this.x + this.width < 0) {
+        this.x = width + 200;
+        this.topHeight = Math.floor(Math.random() * (height / 2)) + 50;
+      }
     }
+
     draw() {
-      this.drawTrunk(this.x, 0, this.width, this.topHeight);
-      const bottomY = this.topHeight + this.gap;
-      this.drawTrunk(this.x, bottomY, this.width, H - groundHeight - bottomY);
-    }
-    drawTrunk(x, y, width, height) {
-      ctx.save();
-
-      // Base wood fill
-      let woodGrad = ctx.createLinearGradient(x, y, x + width, y + height);
-      woodGrad.addColorStop(0, '#9c704a');
-      woodGrad.addColorStop(0.5, '#7a5437');
-      woodGrad.addColorStop(1, '#603d25');
-      ctx.fillStyle = woodGrad;
-      ctx.fillRect(x, y, width, height);
-
-      // Texture lines (curved cartoon style)
-      ctx.strokeStyle = '#5a3e27';
-      ctx.lineWidth = 1.2;
-      for(let i=0; i < height; i += 8){
-        ctx.beginPath();
-        let offset = (i % 16 < 8) ? 0 : 4;
-        ctx.moveTo(x, y + i + offset);
-        ctx.bezierCurveTo(x + width/3, y + i + 8 + offset, x + 2*width/3, y + i - 8 + offset, x + width, y + i + offset);
-        ctx.stroke();
-      }
-
-      // Bark cracks (vertical wavy lines)
-      ctx.strokeStyle = '#4b3a28';
-      ctx.lineWidth = 1.5;
-      for(let i=0; i < width; i += 7){
-        ctx.beginPath();
-        let crackX = x + i + Math.sin(i*4 + y*0.7)*1.8;
-        ctx.moveTo(crackX, y);
-        ctx.lineTo(crackX, y + height);
-        ctx.stroke();
-      }
-
-      // Outline with a thick darker line
+      ctx.fillStyle = '#7b5e2e';
+      ctx.strokeStyle = '#4b3b1b';
       ctx.lineWidth = 3;
-      ctx.strokeStyle = '#3f2f1e';
-      ctx.strokeRect(x
-                    
+
+      // Texture simple troncs avec lignes verticales
+      // Tronc haut
+      ctx.fillRect(this.x, 0, this.width, this.topHeight);
+      for(let i=0; i<6; i++) {
+        ctx.beginPath();
+        let lineX = this.x + i * 8 + 5;
+        ctx.moveTo(lineX, 0);
+        ctx.lineTo(lineX, this.topHeight);
+        ctx.stroke();
+      }
+
+      // Tronc bas
+      let bottomY = this.topHeight + this.gap;
+      let bottomHeight = height - bottomY;
+      ctx.fillRect(this.x, bottomY, this.width, bottomHeight);
+      for(let i=0; i<6; i++) {
+        ctx.beginPath();
+        let lineX = this.x + i * 8 + 5;
+        ctx.moveTo(lineX, bottomY);
+        ctx.lineTo(lineX, height);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Nuages animés
+  const cloudsContainer = document.getElementById('clouds');
+  function createCloud(size, top, delay, duration, left) {
+    const cloud = document.createElement('div');
+    cloud.classList.add('cloud');
+    cloud.style.width = size + 'px';
+    cloud.style.height = (size * 0.6) + 'px';
+    cloud.style.top = top + '%';
+    cloud.style.left = left + 'px';
+    cloud.style.animationDuration = duration + 's';
+    cloud.style.animationDelay = delay + 's';
+    cloudsContainer.appendChild(cloud);
+  }
+  // Création de quelques nuages
+  createCloud(120, 15, 0, 60, -150);
+  createCloud(80, 25, 10, 50, -100);
+  createCloud(100, 10, 5, 70, -130);
+  createCloud(90, 20, 7, 55, -140);
+
+  // Construction ville simple dans background
+  const bg = document.getElementById('background');
+  function createBuilding(widthB, heightB, leftB) {
+    const b = document.createElement('div');
+    b.classList.add('building');
+    b.style.width = widthB + 'px';
+    b.style.height = heightB + 'px';
+    b.style.left = leftB + 'px';
+    bg.appendChild(b);
+  }
+  // Création bâtiments variés
+  let totalWidth = 0;
+  while(totalWidth < window.innerWidth + 200) {
+    const wB = 40 + Math.random() * 40;
+    const hB = 80 + Math.random() * 150;
+    createBuilding(wB, hB, totalWidth);
+    totalWidth += wB + 15;
+  }
+
+  // Gestion jeu
+  let heart = new Heart();
+  let trunks = [];
+  const trunkCount = 3;
+  const trunkSpacing = 300;
+
+  for(let i=0; i<trunkCount; i++) {
+    trunks.push(new Trunk(width + i * trunkSpacing));
+  }
+
+  let score = 0;
+  let gameOver = false;
+
+  // Affichage score
+  function drawScore() {
+    ctx.fillStyle = '#d6366e';
+    ctx.font = 'bold 32px Comic Sans MS';
+    ctx.shadowColor = 'white';
+    ctx.shadowBlur = 4;
+    ctx.fillText(`Score : ${score}`, 20, 50);
+  }
+
+  // Collision simple
+  function collision(h, t) {
+    // Vérifier collision avec troncs
+    let withinX = h.x + h.radius > t.x && h.x - h.radius < t.x + t.width;
+    let withinYTop = h.y - h.radius < t.topHeight;
+    let withinYBottom = h.y + h.radius > t.topHeight + t.gap;
+
+    return withinX && (withinYTop || withinYBottom);
+  }
+
+  // Affichage message fin
+  const messageBox = document.getElementById('messageBox');
+  const restartBtn = document.getElementById('restartBtn');
+  restartBtn.addEventListener('click', () => {
+    resetGame();
+  });
+
+  // Reset jeu
+  function resetGame() {
+    heart = new Heart();
+    trunks = [];
+    for(let i=0; i<trunkCount; i++) {
+      trunks.push(new Trunk(width + i * trunkSpacing));
+    }
+    score = 0;
+    gameOver = false;
+    messageBox.style.display = 'none';
+    animate();
+  }
+
+  // Main loop
+  function animate() {
+    if(gameOver) return;
+
+    ctx.clearRect(0, 0, width, height);
+
+    heart.update();
+    heart.draw();
+
+    trunks.forEach(t => {
+      t.update();
+      t.draw();
+
+      if(collision(heart, t)) {
+        gameOver = true;
+        messageBox.style.display = 'block';
+      }
+
+      // Score update
+      if(t.x + t.width < heart.x && !t.scored) {
+        score++;
+        t.scored = true;
+      }
+      if(t.x > heart.x) t.scored = false;
+    });
+
+    drawScore();
+
+    if(!gameOver) requestAnimationFrame(animate);
+  }
+
+  // Événement tap/clic pour voler
+  window.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if(!gameOver) heart.fly();
+  }, {passive: false});
+
+  window.addEventListener('mousedown', e => {
+    if(!gameOver) heart.fly();
+  });
+
+  // Démarrer
+  animate();
+
+</script>
+</body>
+</html>
