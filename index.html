@@ -1,289 +1,185 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-<title>Flappy Heart Cartoon ❤️</title>
-<style>
-  /* Reset */
-  * {
-    margin: 0; padding: 0; box-sizing: border-box;
-  }
-  html, body {
-    height: 100%;
-    background: linear-gradient(to top, #87ceeb 0%, #a7d8f7 100%);
-    font-family: 'Comic Sans MS', cursive, sans-serif;
-    user-select: none;
-    overflow: hidden;
-  }
-  #gameContainer {
-    position: relative;
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
-  }
-  canvas {
-    display: block;
-    background: linear-gradient(to top, #87ceeb 0%, #a7d8f7 100%);
-  }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy [Son Prénom]!</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #87CEEB; /* Ciel bleu */
+            font-family: Arial, sans-serif;
+            color: white;
+            text-shadow: 2px 2px 4px #000000;
+        }
 
-  /* Ville en 3 plans pour effet profondeur */
-  #cityLayer1, #cityLayer2, #cityLayer3 {
-    position: absolute;
-    bottom: 0;
-    width: 100%;
-    pointer-events: none;
-  }
-  #cityLayer1 {
-    height: 25%;
-    z-index: 1;
-  }
-  #cityLayer2 {
-    height: 15%;
-    z-index: 2;
-    filter: brightness(0.85);
-  }
-  #cityLayer3 {
-    height: 10%;
-    z-index: 3;
-    filter: brightness(0.75);
-  }
+        #game-title {
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
 
-  /* Nuages */
-  #cloudLayer {
-    position: absolute;
-    top: 5%;
-    width: 100%;
-    height: 25%;
-    pointer-events: none;
-    z-index: 5;
-  }
-  .cloud {
-    position: absolute;
-    background: #fff;
-    border-radius: 50% / 60%;
-    opacity: 0.85;
-    filter: drop-shadow(0 3px 6px rgba(0,0,0,0.1));
-  }
+        #game-container {
+            border: 5px solid #333;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            background-color: #70c5ce;
+        }
 
-  /* Message de fin */
-  #messageBox {
-    position: absolute;
-    top: 40%;
-    width: 100%;
-    text-align: center;
-    font-size: 1.8em;
-    color: #d6366e;
-    text-shadow: 1px 1px 2px #fff;
-    display: none;
-    z-index: 10;
-  }
-  #restartBtn {
-    margin-top: 20px;
-    padding: 12px 28px;
-    font-size: 1.3em;
-    border: none;
-    background: #d6366e;
-    color: white;
-    border-radius: 10px;
-    cursor: pointer;
-    box-shadow: 0 4px 8px #b32e61;
-    transition: background 0.3s ease;
-  }
-  #restartBtn:hover {
-    background: #a62b51;
-  }
+        #game-canvas {
+            background-image: url('assets/background.png'); /* À remplacer par votre image de fond */
+            background-size: cover;
+        }
 
-  /* Score */
-  #scoreDisplay {
-    position: absolute;
-    top: 18px;
-    left: 20px;
-    font-size: 2em;
-    color: #d6366e;
-    text-shadow: 1px 1px 3px white;
-    font-weight: bold;
-    z-index: 11;
-  }
-</style>
+        #score-container {
+            margin-top: 20px;
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+    </style>
 </head>
 <body>
-<div id="gameContainer">
 
-  <!-- Décor ville (3 plans) -->
-  <svg id="cityLayer1" viewBox="0 0 1000 250" preserveAspectRatio="xMidYMax meet"></svg>
-  <svg id="cityLayer2" viewBox="0 0 1000 150" preserveAspectRatio="xMidYMax meet"></svg>
-  <svg id="cityLayer3" viewBox="0 0 1000 100" preserveAspectRatio="xMidYMax meet"></svg>
+    <h1 id="game-title">Flappy [Son Prénom]!</h1>
+    <div id="game-container">
+        <canvas id="game-canvas" width="320" height="480"></canvas>
+    </div>
+    <div id="score-container">
+        Score: <span id="score-display">0</span>
+    </div>
 
-  <!-- Nuages -->
-  <svg id="cloudLayer" viewBox="0 0 1000 250" preserveAspectRatio="xMidYMax meet"></svg>
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
 
-  <!-- Canvas jeu -->
-  <canvas id="gameCanvas"></canvas>
+        let birdImg = new Image();
+        birdImg.src = 'assets/bird.png'; // À remplacer par votre image d'oiseau/personnage
 
-  <!-- Score -->
-  <div id="scoreDisplay">Score : 0</div>
+        let pipeImg = new Image();
+        pipeImg.src = 'assets/pipe.png'; // À remplacer par votre image de tuyau/obstacle
 
-  <!-- Message fin -->
-  <div id="messageBox">
-    <div>Ne t’inquiète pas, tu voleras plus haut la prochaine fois ! ❤️</div>
-    <button id="restartBtn">Rejouer</button>
-  </div>
-</div>
+        // Variables du jeu
+        let bird = { x: 50, y: 150, width: 30, height: 30, gravity: 0.2, velocity: 0, jumpPower: -5 };
+        let pipes = [];
+        let score = 0;
+        let isGameOver = false;
 
-<script>
-(() => {
-  const canvas = document.getElementById('gameCanvas');
-  const ctx = canvas.getContext('2d');
-  const scoreDisplay = document.getElementById('scoreDisplay');
-  const messageBox = document.getElementById('messageBox');
-  const restartBtn = document.getElementById('restartBtn');
+        // Dessiner l'oiseau
+        function drawBird() {
+            ctx.drawImage(birdImg, bird.x, bird.y, bird.width, bird.height);
+        }
 
-  // Dimensions
-  let W = window.innerWidth;
-  let H = window.innerHeight;
-  canvas.width = W;
-  canvas.height = H;
+        // Dessiner les tuyaux
+        function drawPipes() {
+            pipes.forEach(pipe => {
+                ctx.drawImage(pipeImg, pipe.x, 0, pipe.width, pipe.top);
+                ctx.drawImage(pipeImg, pipe.x, pipe.bottom, pipe.width, canvas.height - pipe.bottom);
+            });
+        }
 
-  // Redimensionnement responsive
-  window.addEventListener('resize', () => {
-    W = window.innerWidth;
-    H = window.innerHeight;
-    canvas.width = W;
-    canvas.height = H;
-  });
+        // Mettre à jour la physique et les positions
+        function update() {
+            if (isGameOver) return;
 
-  // ----------- PERSONNAGE : CŒUR SVG animé en canvas -----------
+            // Mise à jour de l'oiseau
+            bird.velocity += bird.gravity;
+            bird.y += bird.velocity;
 
-  // Fonction dessin cœur cartoon (style « bulbe »)
-  function drawHeart(ctx, x, y, size, scale = 1, rotation = 0) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(rotation);
-    ctx.scale(scale, scale);
-    ctx.fillStyle = '#e63946';
-    ctx.strokeStyle = '#b22234';
-    ctx.lineWidth = 3;
-    ctx.shadowColor = 'rgba(230,57,70,0.8)';
-    ctx.shadowBlur = 15;
+            // Déplacer les tuyaux
+            pipes.forEach(pipe => {
+                pipe.x -= 2;
+            });
 
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.bezierCurveTo(-size * 0.6, -size * 0.7, -size, size * 0.4, 0, size);
-    ctx.bezierCurveTo(size, size * 0.4, size * 0.6, -size * 0.7, 0, 0);
-    ctx.fill();
-    ctx.stroke();
+            // Générer de nouveaux tuyaux
+            if (pipes.length === 0 || pipes[pipes.length - 1].x < canvas.width - 150) {
+                let gap = Math.floor(Math.random() * (canvas.height / 2)) + 50;
+                let topHeight = Math.floor(Math.random() * (canvas.height - gap - 100)) + 50;
+                pipes.push({
+                    x: canvas.width,
+                    width: 50,
+                    top: topHeight,
+                    bottom: topHeight + gap,
+                    passed: false
+                });
+            }
 
-    // Petit éclat blanc pour effet cartoon
-    ctx.beginPath();
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.ellipse(-size * 0.25, -size * 0.15, size * 0.15, size * 0.2, 0, 0, 2 * Math.PI);
-    ctx.fill();
+            // Supprimer les tuyaux qui sont sortis de l'écran
+            pipes = pipes.filter(pipe => pipe.x + pipe.width > 0);
 
-    ctx.restore();
-  }
+            // Vérifier les collisions
+            checkCollisions();
+            // Vérifier le score
+            checkScore();
+        }
 
-  class Heart {
-    constructor() {
-      this.x = W * 0.2;
-      this.y = H / 2;
-      this.size = 25;
-      this.velocity = 0;
-      this.gravity = 0.7;
-      this.lift = -12;
-      this.maxVelocity = 15;
-      this.animationTick = 0;
-    }
-    update() {
-      this.velocity += this.gravity;
-      if (this.velocity > this.maxVelocity) this.velocity = this.maxVelocity;
-      this.y += this.velocity;
+        // Vérifier les collisions
+        function checkCollisions() {
+            // Collision avec le haut ou le bas
+            if (bird.y + bird.height > canvas.height || bird.y < 0) {
+                endGame();
+            }
+            // Collision avec les tuyaux
+            pipes.forEach(pipe => {
+                if (bird.x < pipe.x + pipe.width && bird.x + bird.width > pipe.x &&
+                    (bird.y < pipe.top || bird.y + bird.height > pipe.bottom)) {
+                    endGame();
+                }
+            });
+        }
 
-      // Limites écran vertical
-      if (this.y + this.size > H) {
-        this.y = H - this.size;
-        this.velocity = 0;
-      }
-      if (this.y - this.size < 0) {
-        this.y = this.size;
-        this.velocity = 0;
-      }
+        // Augmenter le score
+        function checkScore() {
+            pipes.forEach(pipe => {
+                if (pipe.x + pipe.width < bird.x && !pipe.passed) {
+                    score++;
+                    document.getElementById('score-display').innerText = score;
+                    pipe.passed = true;
+                }
+            });
+        }
 
-      // Battement cœur (oscillation scale & légère rotation)
-      this.animationTick += 0.15;
-      this.scale = 1 + 0.08 * Math.sin(this.animationTick * 3);
-      this.rotation = 0.05 * Math.sin(this.animationTick * 5);
-    }
-    fly() {
-      this.velocity = this.lift;
-    }
-    draw() {
-      drawHeart(ctx, this.x, this.y, this.size, this.scale, this.rotation);
-    }
-  }
+        // Fin du jeu
+        function endGame() {
+            isGameOver = true;
+            alert("Game Over! Ton score est de " + score + ". C'est super, mais pas autant que toi !");
+            document.location.reload(); // Recharger la page pour recommencer
+        }
 
-  // ----------- OBSTACLES : Troncs d'arbre détaillés -----------
+        // Gérer les sauts
+        function flap() {
+            if (!isGameOver) {
+                bird.velocity = bird.jumpPower;
+            }
+        }
 
-  class Trunk {
-    constructor(x) {
-      this.x = x;
-      this.width = 55;
-      this.gap = 160;
-      this.topHeight = Math.floor(Math.random() * (H / 2)) + 70;
-      this.speed = 3;
-      this.scored = false;
-    }
-    update() {
-      this.x -= this.speed;
-      if (this.x + this.width < 0) {
-        this.x = W + 200;
-        this.topHeight = Math.floor(Math.random() * (H / 2)) + 70;
-        this.scored = false;
-      }
-    }
-    draw() {
-      // Tronc haut
-      this.drawBark(this.x, 0, this.width, this.topHeight);
-      // Tronc bas
-      this.drawBark(this.x, this.topHeight + this.gap, this.width, H - (this.topHeight + this.gap));
-    }
-    drawBark(x, y, w, h) {
-      // Base tronc
-      ctx.fillStyle = '#7b5e2e';
-      ctx.strokeStyle = '#4b3b1b';
-      ctx.lineWidth = 3;
-      ctx.shadowColor = 'rgba(0,0,0,0.1)';
-      ctx.shadowBlur = 5;
-      ctx.fillRect(x, y, w, h);
-      ctx.strokeRect(x, y, w, h);
+        // Écouter les clics ou les touches
+        document.addEventListener('click', flap);
+        document.addEventListener('keydown', e => {
+            if (e.code === 'Space' || e.code === 'ArrowUp') {
+                flap();
+            }
+        });
 
-      // Lignes verticales style écorce
-      ctx.strokeStyle = '#5c4a1c';
-      ctx.lineWidth = 2;
-      for (let i = 0; i < 6; i++) {
-        const lineX = x + 6 + i * 8;
-        ctx.beginPath();
-        ctx.moveTo(lineX, y);
-        ctx.lineTo(lineX, y + h);
-        ctx.stroke();
-      }
+        // Boucle principale du jeu
+        function gameLoop() {
+            // Effacer l'écran
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Cercles pour noeuds
-      ctx.fillStyle = '#5c4a1c';
-      for (let i = 0; i < 4; i++) {
-        let circleY = y + (i + 1) * (h / 5);
-        let circleX = x + 10 + (i % 2) * 15;
-        ctx.beginPath();
-        ctx.ellipse(circleX, circleY, 5, 8, 0, 0, 2 * Math.PI);
-        ctx.fill();
-      }
-    }
-  }
+            update();
+            drawPipes();
+            drawBird();
+            requestAnimationFrame(gameLoop);
+        }
 
-  // ----------- DECOR : Ville cartoon en SVG -----------
-
-  // Création bâtiments stylisés dans 3 plans avec nuance pour profondeur
-  function createBuildings(svgEl, baseHeight, count, colorBase, colorShadow) {
-    const widthMax = 60;
-    const widthMin = 35;
-    const spacing = 
+        // Démarrer le jeu
+        birdImg.onload = () => {
+            pipeImg.onload = () => {
+                gameLoop();
+            };
+        };
+    </script>
+</body>
+</html>
