@@ -3,127 +3,97 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Flappy Heart - Paysage animé</title>
+<title>Flappy Heart - Stable & Amélioré</title>
 <style>
-  :root{--accent:#d63031;--wood1:#7b5e2f;--wood2:#5c3a1a;--ground1:#2d572c;--ground2:#4caf50}
-  *{box-sizing:border-box}
+  :root{--accent:#d63031}
   html,body{height:100%;margin:0;background:linear-gradient(#bfe9ff,#eaf8ff);font-family:Inter, Arial, sans-serif;overflow:hidden}
-  canvas{display:block;position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:1;background:transparent}
-  #ui-score{position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:10;color:#233; font-weight:700;text-shadow:0 1px 2px rgba(255,255,255,0.85);font-size:22px}
-  #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;pointer-events:none}
-  #gameOver{pointer-events:auto;display:none;min-width:240px;background:rgba(255,255,255,0.95);padding:22px;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,0.25);text-align:center;color:var(--accent);font-weight:700}
-  #restart{margin-top:16px;padding:10px 18px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-weight:800;cursor:pointer}
-  #hud-left{position:fixed;left:12px;top:12px;z-index:10;color:#123;font-weight:700}
-  .small{font-size:13px;font-weight:600;color:#444}
-  #soundToggle{position:fixed;right:12px;top:12px;z-index:10}
-  button:active{transform:translateY(1px)}
-  @media (max-width:420px){#ui-score{font-size:18px}}
+  canvas{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block;z-index:1}
+  #score{position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:10;font-weight:700;color:#1f2b2f;background:rgba(255,255,255,0.6);padding:6px 12px;border-radius:10px}
+  #best{position:fixed;left:12px;top:12px;z-index:10;font-size:13px;color:#233}
+  #controls{position:fixed;right:12px;top:12px;z-index:10}
+  #gameOver{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:20;background:rgba(255,255,255,0.95);padding:22px;border-radius:12px;display:none;text-align:center}
+  #restart{margin-top:12px;padding:10px 18px;background:var(--accent);color:#fff;border:none;border-radius:10px;cursor:pointer}
+  @media (max-width:420px){#score{font-size:16px}}
 </style>
 </head>
 <body>
 
-<canvas id="c"></canvas>
-<div id="hud-left" class="small">Flappy Heart</div>
-<div id="ui-score">Score: 0</div>
-<div id="soundToggle"><label class="small"><input id="soundCheckbox" type="checkbox" checked> Sons</label></div>
+<canvas id="canvas"></canvas>
+<div id="score">Score: 0</div>
+<div id="best">Meilleur: 0</div>
+<div id="controls"><label><input id="soundToggle" type="checkbox" checked> Sons</label></div>
 
-<div id="overlay">
-  <div id="gameOver">
-    <div id="gameOverText">Comme c’est pas grave mon amour,<br>chaque essai te rapproche plus près du ciel.</div>
-    <button id="restart">Rejouer</button>
-  </div>
+<div id="gameOver">
+  <div style="font-weight:800;color:var(--accent);font-size:18px">Comme c’est pas grave mon amour,<br>chaque essai te rapproche plus près du ciel.</div>
+  <button id="restart">Rejouer</button>
 </div>
 
 <script>
-// --- CONFIG & STATE ---
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d', {alpha:true});
-let W = innerWidth, H = innerHeight;
-function resize(){ W = innerWidth; H = innerHeight; canvas.width = W; canvas.height = H; recalcLayout(); }
-addEventListener('resize', resize, {passive:true});
-resize();
+/* ---------- SIMPLE, STABLE FLAPPY HEART (CORRIGÉ) ---------- */
+/* Principes :
+   - calculer toutes les tailles dans resize()
+   - n'exécuter qu'une seule boucle requestAnimationFrame active
+   - init/reset propres
+   - collisions stables
+   - audio créé à la première interaction
+*/
 
-const uiScore = document.getElementById('ui-score');
-const overlay = document.getElementById('overlay');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const bestEl = document.getElementById('best');
 const gameOverBox = document.getElementById('gameOver');
 const restartBtn = document.getElementById('restart');
-const soundCheckbox = document.getElementById('soundCheckbox');
+const soundToggle = document.getElementById('soundToggle');
 
-let state = { score:0, running:true, gameOver:false, frame:0, speedMultiplier:1 };
-
-// Difficulty params (tune here)
-const BASE_PIPE_SPEED = 3.2;        // base horizontal speed
-const BASE_PIPE_GAP_RATIO = 0.32;   // starting gap relative to H
-const PIPE_WIDTH_RATIO = 0.12;
-const PIPE_SPAWN_FRAMES = 95;       // lower = more frequent (harder)
-const SPEED_UP_EVERY = 5;           // every N points speed increases
-const SPEED_INCREMENT = 0.08;       // amount to increase speed multiplier
-
-// Audio: simple WebAudio effects (no external files)
-const enableSound = () => soundCheckbox.checked;
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-function playJumpSound(){ if(!enableSound()) return; const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.type='sine'; o.frequency.value=420; g.gain.value=0.0001; o.connect(g); g.connect(audioCtx.destination); o.start(); g.gain.exponentialRampToValueAtTime(0.18, audioCtx.currentTime+0.02); g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime+0.25); o.stop(audioCtx.currentTime+0.26); }
-function playPointSound(){ if(!enableSound()) return; const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.type='triangle'; o.frequency.value=720; g.gain.value=0.0001; o.connect(g); g.connect(audioCtx.destination); o.start(); g.gain.exponentialRampToValueAtTime(0.18,audioCtx.currentTime+0.01); g.gain.exponentialRampToValueAtTime(0.0001,audioCtx.currentTime+0.15); o.stop(audioCtx.currentTime+0.16); }
-
-// --- LAYOUT recalculation for responsive ---
-let groundH, pipeGap, pipeWidth;
-function recalcLayout(){
-  groundH = Math.max( H * 0.12, 48 );
-  pipeGap = Math.max(H * BASE_PIPE_GAP_RATIO * (0.95 + (state.speedMultiplier-1)*0.06), 100);
-  pipeWidth = Math.max(W * PIPE_WIDTH_RATIO, 42);
+let W = innerWidth, H = innerHeight;
+function resize() {
+  W = innerWidth; H = innerHeight;
+  canvas.width = W; canvas.height = H;
+  recalc(); // recalcule tailles dépendantes
 }
-recalcLayout();
+addEventListener('resize', resize, {passive:true});
 
-// --- BACKGROUND ELEMENTS ---
-// Mountains, hills, houses, road with cars, trees, birds
-class Mountain {
-  constructor(x,w,h,colorA,colorB){ this.x=x; this.w=w; this.h=h; this.colorA=colorA; this.colorB=colorB; }
-  draw(){ const x=this.x, w=this.w, h=this.h; const g=ctx.createLinearGradient(x, H-this.h-h, x, H); g.addColorStop(0,this.colorA); g.addColorStop(1,this.colorB); ctx.fillStyle=g; ctx.beginPath(); ctx.moveTo(x, H); ctx.lineTo(x+w/2, H-h); ctx.lineTo(x+w, H); ctx.closePath(); ctx.fill(); }
-}
-class House {
-  constructor(x,y,w,h,colorBody,colorRoof){ this.x=x; this.y=y; this.w=w; this.h=h; this.body=colorBody; this.roof=colorRoof; this.hasSmoke = Math.random()>0.6; this.smokePhase = Math.random()*Math.PI*2; }
-  update(dt){ if(this.hasSmoke) this.smokePhase += dt*0.001; }
-  draw(){
-    // body
-    ctx.fillStyle = this.body; ctx.fillRect(this.x, this.y - this.h, this.w, this.h);
-    // windows
-    ctx.fillStyle = '#fff'; const w = Math.min(16, this.w*0.18);
-    ctx.fillRect(this.x + this.w*0.12, this.y - this.h + this.h*0.2, w, w);
-    ctx.fillRect(this.x + this.w*0.6, this.y - this.h + this.h*0.22, w, w);
-    // roof
-    ctx.fillStyle = this.roof; ctx.beginPath(); ctx.moveTo(this.x - 6, this.y - this.h); ctx.lineTo(this.x + this.w/2, this.y - this.h - this.h*0.4); ctx.lineTo(this.x + this.w + 6, this.y - this.h); ctx.closePath(); ctx.fill();
-    // chimney + smoke
-    if(this.hasSmoke){
-      const cx = this.x + this.w*0.75, cy = this.y - this.h - this.h*0.15;
-      ctx.fillStyle = '#4b2f13'; ctx.fillRect(cx, cy, Math.max(6, this.w*0.06), Math.max(8,this.h*0.08));
-      // smoke puffs
-      const s = 8 + Math.sin(this.smokePhase)*3;
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      ctx.beginPath(); ctx.ellipse(cx + 6 + Math.sin(this.smokePhase)*8, cy - (10 + Math.sin(this.smokePhase)*6), s, s*0.7, 0, 0, 2*Math.PI); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(cx + 14 + Math.cos(this.smokePhase*1.2)*10, cy - (20 + Math.cos(this.smokePhase)*10), s*0.8, s*0.6, 0, 0, 2*Math.PI); ctx.fill();
-    }
-  }
-}
-class Car {
-  constructor(x,y,dir,color,speed){ this.x=x; this.y=y; this.dir=dir; this.color=color; this.speed=speed; }
-  update(dt){ this.x += this.speed * this.dir * dt * 0.03; if(this.dir>0 && this.x > W+100) this.x = -200; if(this.dir<0 && this.x < -200) this.x = W+100; }
-  draw(){
-    ctx.fillStyle=this.color; ctx.beginPath(); ctx.roundRect(this.x, this.y - 14, 46, 20,6); ctx.fill();
-    ctx.fillStyle='#222'; ctx.beginPath(); ctx.ellipse(this.x+10, this.y+8, 5,4,0,0,2*Math.PI); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(this.x+36, this.y+8, 5,4,0,0,2*Math.PI); ctx.fill();
-  }
-}
-class BirdBG {
-  constructor(x,y,speed,amp){ this.x=x; this.y=y; this.speed=speed; this.amp=amp; this.phase = Math.random()*Math.PI*2; }
-  update(dt){ this.x -= this.speed * dt * 0.03; this.phase += dt*0.01; if(this.x < -60) this.x = W + Math.random()*200; }
-  draw(){ const y = this.y + Math.sin(this.phase)*this.amp; ctx.strokeStyle='#222'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(this.x, y); ctx.quadraticCurveTo(this.x+10, y-8, this.x+20, y); ctx.quadraticCurveTo(this.x+30, y-8, this.x+40, y); ctx.stroke(); }
+// CONFIG (ratios uniquement)
+const R = {
+  groundRatio: 0.12,
+  pipeWidthRatio: 0.12,
+  pipeGapRatio: 0.34,
+  basePipeSpeed: 3.2,
+  spawnIntervalFrames: 95
+};
+
+// Derived (will be set in recalc)
+let groundH, pipeWidth, pipeGap, pipeSpeed, spawnFrames;
+
+// Game state
+let player, trunks, clouds, mountains, houses, cars, birdsBG;
+let frame = 0;
+let score = 0;
+let best = parseInt(localStorage.getItem('flappy_heart_best') || '0', 10) || 0;
+bestEl.textContent = 'Meilleur: ' + best;
+let running = false;
+let animationId = null;
+let lastTime = 0;
+let speedMultiplier = 1;
+
+// Audio (WebAudio simple)
+let audioCtx = null;
+function ensureAudio(){ if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+function playJump(){ if(!soundToggle.checked) return; ensureAudio(); const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.type='sine'; o.frequency.value = 420; g.gain.value = 0.0001; o.connect(g); g.connect(audioCtx.destination); o.start(); g.gain.exponentialRampToValueAtTime(0.12, audioCtx.currentTime+0.02); g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime+0.2); o.stop(audioCtx.currentTime+0.21); }
+function playPoint(){ if(!soundToggle.checked) return; ensureAudio(); const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.type='triangle'; o.frequency.value = 720; g.gain.value = 0.0001; o.connect(g); g.connect(audioCtx.destination); o.start(); g.gain.exponentialRampToValueAtTime(0.12, audioCtx.currentTime+0.01); g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime+0.12); o.stop(audioCtx.currentTime+0.13); }
+
+// recalc derived sizes
+function recalc(){
+  groundH = Math.max(48, H * R.groundRatio);
+  pipeWidth = Math.max(42, W * R.pipeWidthRatio);
+  pipeGap = Math.max(110, H * R.pipeGapRatio * Math.max(0.9, 1 - (speedMultiplier-1)*0.05));
+  pipeSpeed = R.basePipeSpeed * speedMultiplier;
+  spawnFrames = Math.max(40, R.spawnIntervalFrames - Math.floor((speedMultiplier-1)*6));
 }
 
-// Helper: draw rounded rect (context ext)
-CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){
-  if(w<0) { x += w; w = -w; }
-  if(h<0) { y += h; h = -h; }
-  if(typeof r === 'undefined') r=6;
+// Utility: draw rounded rect
+CanvasRenderingContext2D.prototype.roundRectPath = function(x,y,w,h,r=8){
   this.beginPath();
   this.moveTo(x+r,y);
   this.arcTo(x+w,y,x+w,y+h,r);
@@ -131,332 +101,311 @@ CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){
   this.arcTo(x,y+h,x,y,r);
   this.arcTo(x,y,x+w,y,r);
   this.closePath();
-  return this;
 };
 
-// --- GAME OBJECTS ---
-let mountains = [], houses = [], cars = [], birdsBG = [];
+// Background elements initializers
 function initBackground(){
+  // clouds
+  clouds = [];
+  for(let i=0;i<6;i++) clouds.push({x:Math.random()*W, y:20+Math.random()*H*0.25, s:0.6+Math.random()*0.9, speed:0.1+Math.random()*0.3, alpha:0.5+Math.random()*0.5, aDir:(Math.random()>0.5?1:-1)});
+  // mountains
   mountains = [];
-  const baseCount = Math.max(4, Math.floor(W/220));
-  for(let i=0;i<baseCount;i++){
-    const bw = W/baseCount + (Math.random()*60-30);
-    const bh = 120 + Math.random()*140;
-    mountains.push(new Mountain(i*bw - 80, bw+120, bh, '#9fbf8f', '#6f8b5b'));
-  }
-  // houses (on a midground)
+  const mcount = Math.max(3, Math.floor(W/220));
+  for(let i=0;i<mcount;i++){ mountains.push({x:i*(W/mcount)-60, w: W/mcount+120, h:120+Math.random()*120}); }
+  // houses (mid-ground)
   houses = [];
-  const houseLineY = H - groundH - 10;
-  for(let i=0;i<Math.floor(W/140)+2;i++){
-    const w = 60 + Math.random()*40;
-    const h = 50 + Math.random()*40;
-    const x = i*140 + Math.random()*80 - 40;
-    houses.push(new House(x + Math.random()*60, houseLineY, w, h, ['#ffb6b6','#ffd79e','#d9f7be','#d0e1ff'][i%4], ['#b23a3a','#9b5d1e','#3a6b2e','#3a4a8c'][i%4]));
+  const houseY = H - groundH - 6;
+  for(let i=0;i<Math.floor(W/160)+2;i++){
+    const w = 56 + Math.random()*48;
+    const h = 42 + Math.random()*46;
+    houses.push({x: i*160 + Math.random()*40 - 20, y: houseY, w, h, body: ['#ffd7d7','#ffdca6','#d7f1c7','#d3eaff'][i%4], roof: ['#c43','#a64','#3a7','#446'][i%4], smokePhase: Math.random()*6});
   }
-  // cars on road
+  // cars
   cars = [];
-  for(let i=0;i<Math.floor(W/300)+2;i++){
-    const dir = Math.random()>0.5 ? 1 : -1;
-    const x = Math.random()*W;
-    const y = H - groundH + 18 + Math.random()*6;
-    cars.push(new Car(x,y,dir, ['#ff6b6b','#ffd66b','#76d6a3','#70a7ff'][i%4], 1 + Math.random()*1.2));
+  for(let i=0;i<Math.floor(W/300)+1;i++){
+    cars.push({x:Math.random()*W,y:H-groundH+18,dir:Math.random()>0.5?1:-1,color:['#ff6b6b','#ffd66b','#76d6a3','#70a7ff'][i%4],speed:0.7+Math.random()*0.9});
   }
-  // birds background
+  // birds
   birdsBG = [];
-  for(let i=0;i<6;i++){
-    birdsBG.push(new BirdBG(Math.random()*W, 60 + Math.random()*H*0.25, 1 + Math.random()*1.6, 6 + Math.random()*6));
-  }
+  for(let i=0;i<6;i++) birdsBG.push({x:Math.random()*W,y:30+Math.random()*H*0.2,speed:0.8+Math.random()*1.2,phase:Math.random()*6});
 }
-initBackground();
 
-// --- TRUNCS (pipes) as realistic trees with branches/roots ---
+// Trunk class
 class Trunk {
   constructor(x){
     this.x = x;
-    this.width = pipeWidth;
+    this.w = pipeWidth;
     this.gap = pipeGap;
-    this.topHeight = 50 + Math.random() * (H - groundH - this.gap - 120);
+    const minTop = 60;
+    const maxTop = Math.max(minTop, H - groundH - this.gap - 80);
+    this.topH = minTop + Math.random()*(maxTop - minTop);
     this.passed = false;
-    this.branchOffsets = [];
-    const branchCount = 2 + Math.floor(Math.random()*3);
-    for(let i=0;i<branchCount;i++){
-      this.branchOffsets.push( 10 + Math.random()* (this.topHeight - 30) );
-    }
   }
-  update(speed){
-    this.x -= speed;
+  update(){
+    this.x -= pipeSpeed;
   }
   draw(){
-    // top trunk
-    drawTrunk(this.x, 0, this.width, this.topHeight, true);
-    // bottom trunk
-    const bottomY = this.topHeight + this.gap;
-    drawTrunk(this.x, bottomY, this.width, H - groundH - bottomY, false);
+    drawTrunk(this.x, 0, this.w, this.topH, true);
+    const bottomY = this.topH + this.gap;
+    drawTrunk(this.x, bottomY, this.w, H - groundH - bottomY, false);
   }
 }
 
+// draw trunk helper (improved wood)
 function drawTrunk(x,y,w,h,isTop){
   // wood gradient
-  const g = ctx.createLinearGradient(x, y, x+w, y+h);
-  g.addColorStop(0, '--unused');
-  g.addColorStop(0, '#8b5f34');
-  g.addColorStop(0.5, '#6b4226');
-  g.addColorStop(1, '#4a2f12');
+  const g = ctx.createLinearGradient(x, y, x+w, y+h || y+1);
+  g.addColorStop(0,'#8b5f34'); g.addColorStop(0.5,'#6b4226'); g.addColorStop(1,'#4a2f12');
   ctx.fillStyle = g;
-  ctx.fillRect(x, y, w, h);
+  ctx.fillRect(x,y,w,h);
 
-  // inner shadow (simulate hollow/wider with darker inner edge)
-  ctx.fillStyle = 'rgba(0,0,0,0.08)';
-  ctx.fillRect(x + w*0.02, y, w*0.15, h);
+  // inner shade left
+  ctx.fillStyle = 'rgba(0,0,0,0.06)';
+  ctx.fillRect(x + w*0.02, y, w*0.13, h);
 
-  // rings (horizontal ovals)
-  ctx.strokeStyle = 'rgba(75,47,19,0.9)';
-  ctx.lineWidth = 1.4;
+  // rings
+  ctx.strokeStyle = 'rgba(60,40,18,0.9)'; ctx.lineWidth = 1;
   const spacing = 18;
   for(let yy = y + spacing/2; yy < y + h; yy += spacing){
     ctx.beginPath();
-    ctx.ellipse(x + w/2, yy, w/2 - 6, 4, 0, 0, Math.PI*2);
+    ctx.ellipse(x + w/2, yy, Math.max(w/2 - 6, 6), 4, 0, 0, Math.PI*2);
     ctx.stroke();
   }
 
-  // bark cracks
-  ctx.strokeStyle = 'rgba(58,38,12,0.8)';
-  ctx.lineWidth = 1.2;
+  // cracks
+  ctx.strokeStyle = 'rgba(40,28,12,0.7)'; ctx.lineWidth = 1.2;
   for(let i=0;i<w;i+=6){
-    const cx = x + i + Math.sin(i*2 + y*0.1)*1.5;
-    ctx.beginPath();
-    ctx.moveTo(cx, y + 2);
-    ctx.lineTo(cx + Math.sin(i)*3, y + h - 2);
-    ctx.stroke();
+    const cx = x + i + Math.sin(i*1.3 + y*0.02)*1.2;
+    ctx.beginPath(); ctx.moveTo(cx, y+2); ctx.lineTo(cx + Math.sin(i)*3, y + h - 2); ctx.stroke();
   }
 
-  // add roots/irregular base for bottom trunks
+  // roots for bottom
   if(!isTop){
     ctx.fillStyle = '#4a2f12';
     const rootH = Math.min(18, h*0.12);
-    ctx.beginPath();
+    ctx.beginPath(); ctx.moveTo(x, y+h);
     const steps = 6;
-    const baseY = y + h;
-    ctx.moveTo(x, baseY);
-    for(let i=0;i<=steps;i++){
-      const px = x + (i/steps)*w;
-      const py = baseY + Math.sin(i*1.5 + y*0.01)*rootH;
+    for(let s=0;s<=steps;s++){
+      const px = x + (s/steps)*w;
+      const py = y + h + Math.sin(s*1.8 + y*0.03)*rootH;
       ctx.lineTo(px, py);
     }
-    ctx.lineTo(x+w, baseY);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  // simple branch decoration (on side) - draw few small sticks
-  ctx.strokeStyle = '#3f2a12';
-  for(let b=0;b<3;b++){
-    const by = y + 40 + Math.random()*(h-80);
-    const dir = Math.random()>0.5 ? 1 : -1;
-    ctx.beginPath();
-    ctx.moveTo(x + w/2 + dir*2, by);
-    ctx.lineTo(x + w/2 + dir*(20 + Math.random()*20), by - 8 - Math.random()*10);
-    ctx.stroke();
+    ctx.lineTo(x+w, y+h); ctx.closePath(); ctx.fill();
   }
 }
 
-// --- BIRD player ---
-function makeBird(){
+// Player (heart)
+function makePlayer(){
   return {
-    x: W*0.24,
-    y: H/2,
-    baseSize: Math.max(36, Math.min(56, W*0.07)),
-    size: Math.max(36, Math.min(56, W*0.07)),
-    vel: 0,
-    pulse: 0,
-    pulseDir: 1,
-    update(dt){
+    x: W*0.25, y: H/2, baseSize: Math.max(36, Math.min(56, W*0.07)), size:0, vel:0, pulse:0, pulseDir:1,
+    update(){
       this.vel += 0.6;
       this.y += this.vel;
-      if(this.y + this.size/2 > H - groundH){ this.y = H - groundH - this.size/2; this.vel = 0; state.gameOver = true; }
-      if(this.y - this.size/2 < 0){ this.y = this.size/2; this.vel = 0; state.gameOver = true; }
-      this.pulse += 0.02 * this.pulseDir;
-      if(this.pulse > 0.06 || this.pulse < -0.06) this.pulseDir *= -1;
+      if(this.y + this.size/2 > H-groundH){ this.y = H-groundH - this.size/2; this.vel = 0; running=false; onGameOver(); }
+      if(this.y - this.size/2 < 0){ this.y = this.size/2; this.vel = 0; running=false; onGameOver(); }
+      this.pulse += 0.02 * this.pulseDir; if(this.pulse > 0.06 || this.pulse <-0.06) this.pulseDir *= -1;
       this.size = this.baseSize * (1 + this.pulse);
     },
     jump(){
-      this.vel = -11.5;
-      playJumpSound();
+      this.vel = -11.5; playJump();
     },
     draw(){
-      const x = this.x, y = this.y, s = this.size;
-      const top = s*0.3;
-      // shadow
+      const x=this.x,y=this.y,s=this.size; const top = s*0.3;
       ctx.save();
-      ctx.shadowColor = 'rgba(0,0,0,0.18)';
-      ctx.shadowBlur = 12;
-      // heart fill
-      const grad = ctx.createLinearGradient(x-s/2, y-s/2, x+s/2, y+s/2);
-      grad.addColorStop(0, '#ff5b6a'); grad.addColorStop(0.5, '#e63946'); grad.addColorStop(1, '#9b1b1b');
+      // shadow blur
+      ctx.shadowColor = 'rgba(0,0,0,0.2)'; ctx.shadowBlur = 10;
+      const grad = ctx.createLinearGradient(x-s/2,y-s/2,x+s/2,y+s/2);
+      grad.addColorStop(0,'#ff6b76'); grad.addColorStop(0.5,'#e63a46'); grad.addColorStop(1,'#9b1b1b');
       ctx.fillStyle = grad;
       ctx.beginPath();
-      ctx.moveTo(x, y + top);
-      ctx.bezierCurveTo(x, y, x - s/2, y, x - s/2, y + top);
+      ctx.moveTo(x,y+top);
+      ctx.bezierCurveTo(x,y, x - s/2, y, x - s/2, y+top);
       ctx.bezierCurveTo(x - s/2, y + (s + top)/2, x, y + (s + top)/1.2, x, y + s);
       ctx.bezierCurveTo(x, y + (s + top)/1.2, x + s/2, y + (s + top)/2, x + s/2, y + top);
       ctx.bezierCurveTo(x + s/2, y, x, y, x, y + top);
-      ctx.closePath();
-      ctx.fill();
+      ctx.closePath(); ctx.fill();
       // gloss
       const rg = ctx.createRadialGradient(x - s*0.12, y - s*0.28, s*0.03, x - s*0.05, y - s*0.35, s*0.25);
-      rg.addColorStop(0, 'rgba(255,255,255,0.8)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = rg;
-      ctx.fill();
+      rg.addColorStop(0,'rgba(255,255,255,0.7)'); rg.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle = rg; ctx.fill();
       ctx.restore();
-      // outline
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-      ctx.stroke();
+      ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.stroke();
     }
   };
 }
 
-// --- GAME CONTROL & COLLISIONS ---
-let trunks = [];
-function resetGame(){
-  state.score = 0;
-  state.frame = 0;
-  state.speedMultiplier = 1;
-  state.gameOver = false;
-  state.running = true;
-  trunks = [];
+// Collision helper (circle vs rect approximation)
+function circleRectCollision(cx,cy,cr, rx,ry,rw,rh){
+  // find closest point
+  const closestX = Math.max(rx, Math.min(cx, rx+rw));
+  const closestY = Math.max(ry, Math.min(cy, ry+rh));
+  const dx = cx - closestX, dy = cy - closestY;
+  return (dx*dx + dy*dy) < (cr*cr);
+}
+
+// Game control
+function onGameOver(){
+  running = false;
+  gameOverBox.style.display = 'block';
+  if(score > best){ best = score; localStorage.setItem('flappy_heart_best', best); bestEl.textContent = 'Meilleur: ' + best; }
+}
+
+function reset(){
+  trunks = []; frame = 0; score = 0; speedMultiplier = 1; uiUpdate();
+  player = makePlayer();
   initBackground();
-  player = makeBird();
-  uiScore.textContent = 'Score: 0';
+  recalc();
   gameOverBox.style.display = 'none';
-}
-restartBtn.onclick = resetGame;
-
-function spawnTrunk(){
-  trunks.push(new Trunk(W + Math.random()*80));
-}
-
-function rectsOverlap(ax1,ay1,ax2,ay2,bx1,by1,bx2,by2){
-  return !(ax2 < bx1 || ax1 > bx2 || ay2 < by1 || ay1 > by2);
+  running = true;
+  if(animationId) cancelAnimationFrame(animationId);
+  lastTime = performance.now();
+  requestAnimationFrame(loop);
 }
 
-// --- MAIN LOOP ---
-let player = makeBird();
-resetGame();
-let lastT = performance.now();
+function uiUpdate(){ scoreEl.textContent = 'Score: ' + score; }
 
+// spawn logic using frames
+let spawnCounter = 0;
+function spawnIfNeeded(){
+  spawnCounter++;
+  if(spawnCounter >= spawnFrames){ spawnCounter = 0; trunks.push(new Trunk(W + 20)); }
+}
+
+// Update & Draw
 function update(dt){
-  // speed progression with score
-  const speed = BASE_PIPE_SPEED * (1 + (state.speedMultiplier - 1));
-  // background updates
-  mountains.forEach(m=>{/* static*/});
-  houses.forEach(h=>h.update(dt));
-  cars.forEach(c=>c.update(dt));
-  birdsBG.forEach(b=>b.update(dt));
-  ground.update();
+  // update background anims
+  clouds.forEach(c => { c.x += c.speed * dt * 0.03; c.alpha += 0.002 * (c.aDir); if(c.x - 200 > W) c.x = -120; if(c.alpha > 0.9 || c.alpha < 0.4) c.aDir *= -1; });
+  mountains.forEach(m=>{/* static */});
+  houses.forEach(h=>{ if(h.smokePhase !== undefined) h.smokePhase += dt*0.002; });
+  cars.forEach(car => { car.x += car.speed * (car.dir) * dt * 0.03; if(car.dir>0 && car.x > W+120) car.x = -120; if(car.dir<0 && car.x < -200) car.x = W+120; });
+  birdsBG.forEach(b=>{ b.x -= b.speed * dt * 0.03; b.phase += dt*0.01; if(b.x < -80) b.x = W + Math.random()*160; });
 
-  // trunks move
-  for(let t of trunks) t.update(speed);
-  // spawn logic
-  if(state.frame % Math.max(30, PIPE_SPAWN_FRAMES - Math.floor(state.speedMultiplier*6)) === 0){
-    spawnTrunk();
-  }
-  // remove offscreen
-  trunks = trunks.filter(t => t.x + t.width > -60);
+  // trunks
+  trunks.forEach(t => t.update());
+  trunks = trunks.filter(t => t.x + t.w > -80);
 
-  // player physics
+  spawnIfNeeded();
+
+  // player
   player.update(dt);
 
   // collisions & scoring
-  for(let i=0;i<trunks.length;i++){
-    const t = trunks[i];
+  for(let t of trunks){
     // scoring
-    if(!t.passed && t.x + t.width < player.x - 4){
-      t.passed = true;
-      state.score++;
-      uiScore.textContent = 'Score: ' + state.score;
-      playPointSound();
-      // increase difficulty progressively
-      if(state.score % SPEED_UP_EVERY === 0) state.speedMultiplier += SPEED_INCREMENT;
+    if(!t.passed && t.x + t.w < player.x - 4){
+      t.passed = true; score++; uiUpdate(); playPoint(); if(score % 5 === 0) { speedMultiplier += 0.08; recalc(); }
     }
-    // collision detection approx with bbox
-    const bx1 = player.x - player.size/2, bx2 = player.x + player.size/2, by1 = player.y - player.size/2, by2 = player.y + player.size/2;
-    const px1 = t.x, px2 = t.x + t.width, ptop = t.topHeight, pbot = t.topHeight + t.gap;
-    // top trunk rect
-    if(rectsOverlap(bx1,by1,bx2,by2, px1, 0, px2, ptop) || rectsOverlap(bx1,by1,bx2,by2, px1, pbot, px2, H)){
-      state.gameOver = true;
+    // check collision top & bottom with circle approx
+    const cx = player.x, cy = player.y, cr = player.size/2 * 0.85;
+    if(circleRectCollision(cx,cy,cr, t.x, 0, t.w, t.topH) || circleRectCollision(cx,cy,cr, t.x, t.topH + t.gap, t.w, H - groundH - (t.topH + t.gap))){
+      running = false; onGameOver(); break;
     }
   }
 }
 
-function draw(dt){
-  // clear
-  ctx.clearRect(0,0,W,H);
+function draw(){
+  // sky
+  const sg = ctx.createLinearGradient(0,0,0,H); sg.addColorStop(0,'#bfe9ff'); sg.addColorStop(1,'#eaf8ff'); ctx.fillStyle = sg; ctx.fillRect(0,0,W,H);
 
-  // sky gradient (subtle)
-  const skyGrad = ctx.createLinearGradient(0,0,0,H*0.9); skyGrad.addColorStop(0,'#bfe9ff'); skyGrad.addColorStop(1,'#eaf8ff');
-  ctx.fillStyle = skyGrad; ctx.fillRect(0,0,W,H);
+  // mountains (back)
+  mountains.forEach(m => {
+    const g = ctx.createLinearGradient(m.x, H-m.h, m.x, H);
+    g.addColorStop(0,'#9fbf8f'); g.addColorStop(1,'#6f8b5b');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(m.x, H); ctx.lineTo(m.x + m.w/2, H - m.h); ctx.lineTo(m.x + m.w, H); ctx.closePath(); ctx.fill();
+    // small dark shadow
+    ctx.fillStyle = 'rgba(46,55,35,0.12)'; ctx.beginPath(); ctx.moveTo(m.x + m.w/4, H); ctx.lineTo(m.x + m.w/2, H - m.h*0.8); ctx.lineTo(m.x + m.w/2 + 6, H - m.h); ctx.lineTo(m.x + m.w*0.8, H); ctx.closePath(); ctx.fill();
+  });
 
-  // distant mountains
-  mountains.forEach(m=>m.draw());
+  // houses (mid)
+  houses.forEach(h => {
+    ctx.fillStyle = h.body; ctx.fillRect(h.x, h.y - h.h, h.w, h.h);
+    // roof
+    ctx.fillStyle = h.roof; ctx.beginPath(); ctx.moveTo(h.x - 6, h.y - h.h); ctx.lineTo(h.x + h.w/2, h.y - h.h - h.h*0.45); ctx.lineTo(h.x + h.w + 6, h.y - h.h); ctx.closePath(); ctx.fill();
+    // windows
+    ctx.fillStyle='#fff'; const wx = Math.min(16,h.w*0.18); ctx.fillRect(h.x + h.w*0.12, h.y - h.h + h.h*0.22, wx, wx); ctx.fillRect(h.x + h.w*0.6, h.y - h.h + h.h*0.22, wx, wx);
+    // smoke
+    if(h.smokePhase !== undefined){
+       const cx = h.x + h.w*0.75; const cy = h.y - h.h - h.h*0.15;
+       ctx.fillStyle = 'rgba(255,255,255,0.7)';
+       ctx.beginPath(); ctx.ellipse(cx + Math.sin(h.smokePhase)*6, cy - 10 - Math.cos(h.smokePhase)*8, 8, 6, 0,0,Math.PI*2); ctx.fill();
+       ctx.beginPath(); ctx.ellipse(cx + 10 + Math.cos(h.smokePhase*1.3)*10, cy - 26 - Math.sin(h.smokePhase*1.1)*10, 7,5,0,0,Math.PI*2); ctx.fill();
+    }
+  });
 
-  // parallax mid houses
-  houses.forEach(h=>h.draw());
+  // cars (road)
+  cars.forEach(c => {
+    ctx.fillStyle = c.color; roundRect(ctx, c.x, c.y - 12, 46, 20, 6); ctx.fill();
+    ctx.fillStyle = '#222'; ctx.beginPath(); ctx.ellipse(c.x + 12, c.y + 6, 5, 4,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(c.x + 34, c.y + 6, 5,4,0,0, Math.PI*2); ctx.fill();
+  });
 
-  // road & cars (further)
-  cars.forEach(c=>c.draw());
+  // birds (bg)
+  birdsBG.forEach(b => { ctx.strokeStyle='#222'; ctx.lineWidth=2; ctx.beginPath(); const y=b.y + Math.sin(b.phase)*6; ctx.moveTo(b.x, y); ctx.quadraticCurveTo(b.x+12,y-8,b.x+24,y); ctx.stroke(); });
 
-  // birds background
-  birdsBG.forEach(b=>b.draw());
+  // clouds
+  clouds.forEach(c => {
+    ctx.save(); ctx.globalAlpha = c.alpha;
+    const grad = ctx.createRadialGradient(c.x+40*c.s, c.y, 20*c.s, c.x+40*c.s, c.y, 70*c.s);
+    grad.addColorStop(0,'rgba(255,255,255,0.95)'); grad.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.ellipse(c.x, c.y, 40*c.s, 28*c.s, 0,0,2*Math.PI); ctx.ellipse(c.x+28*c.s, c.y-8*c.s, 30*c.s, 24*c.s, 0,0,2*Math.PI); ctx.ellipse(c.x+56*c.s, c.y+10*c.s, 30*c.s, 28*c.s, 0,0,2*Math.PI); ctx.fill(); ctx.restore();
+  });
 
-  // ground and flowers
-  ground.draw();
+  // ground
+  const gh = groundH;
+  const gGr = ctx.createLinearGradient(0, H-gh, 0, H); gGr.addColorStop(0,'#2d572c'); gGr.addColorStop(1,'#4caf50');
+  ctx.fillStyle = gGr; ctx.fillRect(0, H-gh, W, gh);
+  // small blades
+  ctx.strokeStyle = '#1b3a16'; ctx.lineWidth = 2;
+  for(let i=0;i<W;i+=12){ const sway = Math.sin((i+frame*2)*0.01)*4; ctx.beginPath(); ctx.moveTo(i, H-gh); ctx.lineTo(i+sway, H-gh - 18); ctx.stroke(); }
 
-  // trunks (in front of midground)
-  trunks.forEach(t=>t.draw());
+  // trunks
+  trunks.forEach(t => t.draw());
 
   // player
   player.draw();
-
-  // foreground small grass overlap
-  // done by ground draw already
-
-  // visuals: nothing else
 }
 
-// main animation loop
-function frame(now){
-  const dt = now - lastT;
-  lastT = now;
-  if(!state.gameOver){
+// simple rounded rect helper
+function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+// main loop
+function loop(now){
+  if(!lastTime) lastTime = now;
+  const dt = now - lastTime; lastTime = now;
+  if(running){
     update(dt);
-    draw(dt);
-    state.frame++;
-    requestAnimationFrame(frame);
+    draw();
+    frame++;
+    animationId = requestAnimationFrame(loop);
   } else {
-    // show game over UI
-    gameOverBox.style.display = 'block';
-    // draw final frame overlay
-    draw(dt);
+    draw();
+    // show overlay if game over
+    if(!running) gameOverBox.style.display = 'block';
   }
 }
 
-// Input
-function jumpAction(e){
-  // resume audio on first touch if needed
-  if(audioCtx.state === 'suspended') audioCtx.resume();
-  if(!state.gameOver) player.jump();
-  else { resetGame(); requestAnimationFrame(frame); }
+// Input handlers
+function onJump(){
+  // resume audio context at first interaction
+  if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  if(!running){
+    reset();
+    return;
+  }
+  player.jump();
 }
-addEventListener('keydown', e => { if(e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); jumpAction(); } });
-addEventListener('mousedown', jumpAction);
-addEventListener('touchstart', e => { e.preventDefault(); jumpAction(); }, {passive:false});
+addEventListener('keydown', e => { if(e.code === 'Space' || e.code === 'ArrowUp'){ e.preventDefault(); onJump(); } }, {passive:false});
+addEventListener('mousedown', onJump);
+addEventListener('touchstart', e => { e.preventDefault(); onJump(); }, {passive:false});
+restartBtn.addEventListener('click', ()=>{ reset(); });
 
-// start loop
-requestAnimationFrame(frame);
+// start the game for the first time
+recalc(); initBackground(); reset();
 
-// ensure background objects know about updated sizes when resized
-addEventListener('resize', ()=>{ recalcLayout(); initBackground(); }, {passive:true});
+// expose for debug in console
+window._flappy = { reset, player, trunks };
 
 </script>
 </body>
