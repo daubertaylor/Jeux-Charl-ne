@@ -71,6 +71,7 @@
     text-shadow: 1px 1px 3px #fff;
     user-select: none;
     z-index: 10;
+    display: none;
   }
   #gameOverMessage {
     position: fixed;
@@ -146,18 +147,18 @@
   window.addEventListener('resize', resize);
 
   // Best score in localStorage
-  let bestScore = localStorage.getItem('bestScore') || 0;
+  let bestScore = parseInt(localStorage.getItem('bestScore') || '0');
   bestScoreEl.textContent = 'Meilleur score : ' + bestScore;
 
   // GAME VARIABLES
-  let bird, pipes, frameCount, score, gameOver, gameStarted;
+  let bird, pipes, frameCount, score, gameOver, gameStarted, animationId;
 
   // CONSTANTS
   const gravity = 0.6;
   const jumpForce = -11;
-  const pipeWidth = W * 0.12;
-  const pipeGap = H * 0.33;
-  const groundHeight = H * 0.12;
+  const pipeWidthRatio = 0.12;  // pipe width relative to width
+  const pipeGapRatio = 0.33;
+  const groundHeightRatio = 0.12;
 
   // Bird object
   function createBird() {
@@ -228,8 +229,8 @@
   class Pipe {
     constructor(x) {
       this.x = x;
-      this.width = pipeWidth;
-      this.gap = pipeGap;
+      this.width = W * pipeWidthRatio;
+      this.gap = H * pipeGapRatio;
       const minHeight = 50;
       this.topHeight = minHeight + Math.random() * (H - groundHeight - this.gap - minHeight);
       this.passed = false;
@@ -301,6 +302,8 @@
       if (this.alpha > 1 || this.alpha < 0.4) this.alphaDir = -this.alphaDir;
     }
   }
+
+  // Initial clouds
   const clouds = [
     new Cloud(W * 0.1, H * 0.18, 1.3, 0.3),
     new Cloud(W * 0.5, H * 0.15, 1.0, 0.22),
@@ -354,4 +357,33 @@
     }
   }
   function drawGrass(time) {
-    ctx.stroke
+    ctx.strokeStyle = '#1b4d00';
+    ctx.lineWidth = 2;
+    for(let i=0; i<grassPoints.length; i++){
+      let p = grassPoints[i];
+      let sway = Math.sin(time/300 + p.offset) * 6;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.baseY);
+      ctx.quadraticCurveTo(p.x + sway, p.baseY - p.height, p.x, p.baseY - p.height*1.4);
+      ctx.stroke();
+    }
+  }
+
+  // Ground draw
+  function drawGround() {
+    ctx.fillStyle = '#2c7a0f';
+    ctx.fillRect(0, H - groundHeight, W, groundHeight);
+  }
+
+  // Initialize game variables
+  function initGame() {
+    bird = createBird();
+    pipes = [];
+    frameCount = 0;
+    score = 0;
+    gameOver = false;
+    scoreEl.textContent = 'Score: 0';
+    scoreEl.style.display = 'block';
+    gameOverMessage.style.display = 'none';
+
+    initGrass
