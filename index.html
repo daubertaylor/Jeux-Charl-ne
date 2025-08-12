@@ -268,7 +268,7 @@
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-      // Window
+      // Windows
       ctx.fillStyle = '#fff7b0';
       ctx.fillRect(hx + 20, houseBaseY - 55, 25, 25);
       ctx.strokeRect(hx + 20, houseBaseY - 55, 25, 25);
@@ -291,4 +291,157 @@
       ctx.stroke();
     }
 
-    // Trees front (static
+    // Trees front
+    const treeBaseY = baseY - groundHeight * 0.5;
+    const treeSpacing = W / 10;
+    for(let i = 0; i < 12; i++) {
+      const tx = i * treeSpacing + (i%2) * 20;
+      drawTree(tx, treeBaseY);
+    }
+  }
+
+  // Draw simple cartoon pine tree
+  function drawTree(x, y) {
+    // Trunk
+    ctx.fillStyle = '#6b4a1a';
+    ctx.fillRect(x + 15, y, 15, 50);
+    ctx.strokeStyle = '#4b3810';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x + 15, y, 15, 50);
+
+    // Pine needles layers
+    ctx.fillStyle = '#217a2f';
+    ctx.strokeStyle = '#155116';
+    ctx.lineWidth = 2;
+
+    for(let i=0; i<3; i++) {
+      const baseY = y - i*25;
+      ctx.beginPath();
+      ctx.moveTo(x, baseY + 50);
+      ctx.lineTo(x + 42, baseY + 50);
+      ctx.lineTo(x + 21, baseY + 15);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  // Initialize game state
+  function init() {
+    groundHeight = H * groundHeightRatio;
+    pipeWidth = W * pipeWidthRatio;
+    pipeGap = H * pipeGapRatio;
+
+    bird = createBird();
+    pipes = [];
+    frameCount = 0;
+    score = 0;
+    gameOver = false;
+
+    // Create first pipes far right off screen
+    pipes.push(new Pipe(W + 150));
+    pipes.push(new Pipe(W + 150 + W / 2));
+  }
+
+  // Check collision between bird and pipes
+  function checkCollision(pipe) {
+    // Bird bounds
+    const bx = bird.x;
+    const by = bird.y;
+    const br = bird.size / 2;
+
+    // Pipe top rect
+    const px = pipe.x;
+    const pw = pipe.width;
+    const pt = pipe.topHeight;
+
+    // Pipe bottom rect
+    const pb = pipe.topHeight + pipe.gap;
+    const ph = H - groundHeight - pb;
+
+    // Collision with top pipe
+    if(bx + br > px && bx - br < px + pw && by - br < pt) {
+      return true;
+    }
+    // Collision with bottom pipe
+    if(bx + br > px && bx - br < px + pw && by + br > pb) {
+      return true;
+    }
+    return false;
+  }
+
+  // GAME LOOP
+  function gameLoop() {
+    ctx.clearRect(0, 0, W, H);
+
+    drawBackground();
+
+    bird.update();
+    bird.draw();
+
+    if(gameOver) {
+      gameOverMessage.style.display = 'block';
+      return;
+    }
+
+    // Pipes update + draw
+    for(let i = 0; i < pipes.length; i++) {
+      const p = pipes[i];
+      p.update();
+      p.draw();
+
+      // Check collision
+      if(checkCollision(p)) {
+        gameOver = true;
+      }
+
+      // Score counting
+      if(!p.passed && p.x + p.width < bird.x) {
+        p.passed = true;
+        score++;
+        scoreEl.textContent = 'Score: ' + score;
+      }
+    }
+
+    // Remove pipes off screen and add new ones
+    if(pipes.length && pipes[0].x + pipes[0].width < 0) {
+      pipes.shift();
+      const lastPipeX = pipes.length ? pipes[pipes.length -1].x : W + 150;
+      pipes.push(new Pipe(lastPipeX + W / 2));
+    }
+
+    frameCount++;
+    requestAnimationFrame(gameLoop);
+  }
+
+  // EVENTS
+  function onUserInput(e) {
+    if(!gameOver) {
+      bird.jump();
+    }
+  }
+  window.addEventListener('keydown', e => {
+    if(e.code === 'Space' || e.code === 'ArrowUp') {
+      e.preventDefault();
+      onUserInput(e);
+    }
+  });
+  window.addEventListener('mousedown', onUserInput);
+  window.addEventListener('touchstart', onUserInput);
+
+  restartBtn.addEventListener('click', () => {
+    gameOverMessage.style.display = 'none';
+    scoreEl.textContent = 'Score: 0';
+    init();
+    gameLoop();
+  });
+
+  // START
+  init();
+  gameLoop();
+
+})();
+</script>
+
+</body>
+</html>
