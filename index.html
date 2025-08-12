@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Flappy Heart - Nature</title>
+<title>Flappy Heart - Nature amélioré</title>
 <style>
   html, body {
     margin: 0; padding: 0; overflow: hidden;
@@ -32,17 +32,41 @@
     pointer-events: none;
     z-index: 10;
   }
+  #restartBtn {
+    position: fixed;
+    top: 60%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 14px 32px;
+    font-size: 24px;
+    font-weight: bold;
+    background: #e63946;
+    color: white;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(230, 57, 70, 0.7);
+    display: none;
+    user-select: none;
+    z-index: 20;
+  }
+  #restartBtn:hover {
+    background: #c5323c;
+  }
 </style>
 </head>
 <body>
 
 <div id="score">Score: 0</div>
+<button id="restartBtn">Rejouer</button>
 <canvas id="game"></canvas>
 
 <script>
 (() => {
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
+  const scoreEl = document.getElementById('score');
+  const restartBtn = document.getElementById('restartBtn');
 
   let W, H;
   function resize() {
@@ -54,28 +78,20 @@
   resize();
   window.addEventListener('resize', resize);
 
-  // Variables
+  // Variables jeu
   const gravity = 0.6;
   const lift = -12;
   const pipeSpeed = 3;
   const pipeWidthRatio = 0.12;
   const pipeGapRatio = 0.35;
 
-  let bird = {
-    x: 0,
-    y: 0,
-    size: 0,
-    velocity: 0
-  };
-
+  let bird = { x: 0, y: 0, size: 0, velocity: 0 };
   let pipes = [];
   let frameCount = 0;
   let score = 0;
   let gameOver = false;
 
-  const scoreEl = document.getElementById('score');
-
-  // Initialise le jeu
+  // Initialisation
   function resetGame() {
     bird.x = W * 0.2;
     bird.y = H / 2;
@@ -86,9 +102,10 @@
     score = 0;
     gameOver = false;
     scoreEl.textContent = "Score: 0";
+    restartBtn.style.display = "none";
   }
 
-  // Dessine un cœur cartoon
+  // Dessine cœur cartoon
   function drawHeart(x, y, size, color) {
     ctx.fillStyle = color;
     ctx.beginPath();
@@ -114,37 +131,16 @@
     ctx.stroke();
   }
 
-  // Dessine un arbre simple (tronc + feuillage)
-  function drawTree(x, y, width, height) {
-    // Tronc marron
+  // Dessine tronc arbre simple (sans feuillage)
+  function drawTrunk(x, y, width, height) {
     ctx.fillStyle = '#5c3a1a';
     ctx.strokeStyle = 'white';
     ctx.lineWidth = 3;
     ctx.fillRect(x, y, width, height);
     ctx.strokeRect(x, y, width, height);
-
-    // Feuillage vert cartoon (3 ellipses)
-    const foliageRadius = width * 1.2;
-    const foliageY = y - foliageRadius * 0.6;
-
-    ctx.fillStyle = '#2e8b57';
-    ctx.beginPath();
-    ctx.ellipse(x + width / 2, foliageY, foliageRadius, foliageRadius * 0.8, 0, 0, 2 * Math.PI);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.ellipse(x + width / 2 - foliageRadius * 0.6, foliageY + foliageRadius * 0.2, foliageRadius * 0.9, foliageRadius * 0.6, 0, 0, 2 * Math.PI);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.ellipse(x + width / 2 + foliageRadius * 0.6, foliageY + foliageRadius * 0.2, foliageRadius * 0.9, foliageRadius * 0.6, 0, 0, 2 * Math.PI);
-    ctx.fill();
-    ctx.stroke();
   }
 
-  // Nuage animé simple
+  // Nuages animés
   class Cloud {
     constructor(x, y, scale, speed) {
       this.x = x;
@@ -153,7 +149,7 @@
       this.speed = speed;
     }
     draw() {
-      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
       ctx.strokeStyle = 'white';
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -178,7 +174,31 @@
     new Cloud(W * 0.8, H * 0.25, 1.5, 0.25),
   ];
 
-  // Création d’un nouveau pipe (arbre)
+  // Sol avec herbes (brins)
+  function drawGround() {
+    const grassHeight = H * 0.12;
+    const grad = ctx.createLinearGradient(0, H - grassHeight, 0, H);
+    grad.addColorStop(0, '#3cb043');
+    grad.addColorStop(1, '#2e8b57');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, H - grassHeight, W, grassHeight);
+
+    // Brins d'herbe aléatoires
+    ctx.strokeStyle = '#2a5d2a';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < W; i += 15) {
+      let x = i + Math.random() * 10;
+      let baseY = H - grassHeight;
+      let height = 10 + Math.random() * 15;
+      ctx.beginPath();
+      ctx.moveTo(x, baseY);
+      ctx.lineTo(x + 3, baseY - height);
+      ctx.lineTo(x - 2, baseY - height * 0.6);
+      ctx.stroke();
+    }
+  }
+
+  // Crée un pipe (arbre-tronc)
   function createPipe() {
     const pipeWidth = W * pipeWidthRatio;
     const pipeGap = H * pipeGapRatio;
@@ -194,7 +214,7 @@
     });
   }
 
-  // Vérifie collision entre coeur et arbres / limites
+  // Collision simple entre cœur et arbres + limites
   function checkCollision() {
     const b = bird;
     const halfSize = b.size / 2;
@@ -204,120 +224,3 @@
       if (
         b.x + halfSize > pipe.x &&
         b.x - halfSize < pipe.x + pipe.width &&
-        b.y - halfSize < pipe.topHeight
-      ) return true;
-
-      // Collision avec pipe du bas
-      if (
-        b.x + halfSize > pipe.x &&
-        b.x - halfSize < pipe.x + pipe.width &&
-        b.y + halfSize > pipe.topHeight + pipe.gap
-      ) return true;
-    }
-    // Collision avec sol/plafond
-    if (b.y + halfSize > H || b.y - halfSize < 0) return true;
-
-    return false;
-  }
-
-  // Dessine le sol herbeux
-  function drawGround() {
-    const grassHeight = H * 0.12;
-    const grad = ctx.createLinearGradient(0, H - grassHeight, 0, H);
-    grad.addColorStop(0, '#3cb043');
-    grad.addColorStop(1, '#2e8b57');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, H - grassHeight, W, grassHeight);
-  }
-
-  // Dessine tous les éléments du jeu
-  function draw() {
-    ctx.clearRect(0, 0, W, H);
-
-    drawGround();
-
-    clouds.forEach(c => {
-      c.draw();
-      c.update();
-    });
-
-    // Pipes / arbres
-    pipes.forEach(pipe => {
-      // Arbre haut inversé
-      ctx.save();
-      ctx.translate(pipe.x + pipe.width / 2, pipe.topHeight / 2);
-      ctx.scale(1, -1);
-      drawTree(-pipe.width / 2, 0, pipe.width, pipe.topHeight);
-      ctx.restore();
-
-      // Arbre bas
-      drawTree(pipe.x, pipe.topHeight + pipe.gap, pipe.width, H - (pipe.topHeight + pipe.gap) - H * 0.12);
-    });
-
-    // Oiseau (coeur)
-    drawHeart(bird.x, bird.y, bird.size, '#e63946');
-  }
-
-  // Met à jour la physique du jeu
-  function update() {
-    if (gameOver) return;
-
-    bird.velocity += gravity;
-    bird.y += bird.velocity;
-
-    // Avance des pipes
-    for (let pipe of pipes) {
-      pipe.x -= pipeSpeed;
-    }
-
-    // Supprime les pipes hors écran à gauche
-    if (pipes.length && pipes[0].x + pipes[0].width < 0) {
-      pipes.shift();
-      score++;
-      scoreEl.textContent = "Score: " + score;
-    }
-
-    // Ajoute un nouveau pipe toutes les 120 frames (~2 sec à 60fps)
-    frameCount++;
-    if (frameCount % 120 === 0) {
-      createPipe();
-    }
-
-    if (checkCollision()) {
-      gameOver = true;
-      scoreEl.textContent = "Game Over ! Score final : " + score + " - Rafraîchis pour rejouer";
-    }
-  }
-
-  // Gestion de la touche espace ou clic pour faire sauter
-  function flap() {
-    if (gameOver) return;
-    bird.velocity = lift;
-  }
-  window.addEventListener('keydown', e => {
-    if (e.code === 'Space') {
-      flap();
-      e.preventDefault();
-    }
-  });
-  window.addEventListener('mousedown', e => {
-    flap();
-  });
-  window.addEventListener('touchstart', e => {
-    flap();
-  });
-
-  // Boucle principale
-  function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
-  }
-
-  resetGame();
-  loop();
-})();
-</script>
-
-</body>
-</html>
