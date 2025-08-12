@@ -203,7 +203,7 @@
     const pipeWidth = W * pipeWidthRatio;
     const pipeGap = H * pipeGapRatio;
     const minPipeHeight = H * 0.1;
-    const maxPipeHeight = H - pipeGap - minPipeHeight;
+    const maxPipeHeight = H - pipeGap - minPipeHeight - H * 0.12; // prend en compte le sol
     const topPipeHeight = minPipeHeight + Math.random() * (maxPipeHeight - minPipeHeight);
 
     pipes.push({
@@ -220,7 +220,27 @@
     const halfSize = b.size / 2;
 
     for (let pipe of pipes) {
-      // Collision avec pipe du haut
+      // Collision avec pipe du haut (tronc inversé)
       if (
         b.x + halfSize > pipe.x &&
         b.x - halfSize < pipe.x + pipe.width &&
+        b.y - halfSize < pipe.topHeight
+      ) return true;
+
+      // Collision avec pipe du bas (tronc normal)
+      if (
+        b.x + halfSize > pipe.x &&
+        b.x - halfSize < pipe.x + pipe.width &&
+        b.y + halfSize > pipe.topHeight + pipe.gap
+      ) return true;
+    }
+    // Collision avec sol/plafond
+    if (b.y + halfSize > H - H * 0.12 || b.y - halfSize < 0) return true;
+
+    return false;
+  }
+
+  // Dessine tous les éléments du jeu
+  function draw() {
+    ctx.clearRect(0, 0, W, H
+                
