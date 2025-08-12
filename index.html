@@ -1,238 +1,241 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Flappy Heart - Ville Animée</title>
-<style>
-  html, body {
-    margin: 0; padding: 0; overflow: hidden; height: 100%;
-    background: linear-gradient(to top, #1a1a40 0%, #3a3a70 70%, #aabbff 100%);
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    user-select: none;
-  }
-  canvas {
-    display: block;
-    position: fixed;
-    top: 0; left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: transparent;
-    z-index: 0;
-  }
-  #score {
-    position: fixed;
-    top: 20px; left: 50%;
-    transform: translateX(-50%);
-    font-size: 28px;
-    font-weight: bold;
-    color: #f5f5f5;
-    text-shadow: 0 0 8px #ff3b3b;
-    z-index: 10;
-  }
-  #gameOverMessage {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(20, 20, 40, 0.9);
-    padding: 30px 40px;
-    border-radius: 20px;
-    box-shadow: 0 8px 25px rgba(255, 59, 59, 0.8);
-    font-size: 24px;
-    color: #ff5959;
-    font-weight: 700;
-    text-align: center;
-    max-width: 80vw;
-    z-index: 20;
-    display: none;
-  }
-  #restartBtn {
-    margin-top: 20px;
-    padding: 12px 28px;
-    font-size: 20px;
-    font-weight: 700;
-    background: #ff3b3b;
-    color: white;
-    border: none;
-    border-radius: 15px;
-    cursor: pointer;
-    box-shadow: 0 6px 18px rgba(255, 59, 59, 0.8);
-    transition: background 0.3s ease;
-  }
-  #restartBtn:hover {
-    background: #d93636;
-  }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Heart - Pour ma copine ❤️</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #87CEEB; } /* Ciel bleu clair */
+        canvas { display: block; margin: 0 auto; }
+    </style>
 </head>
 <body>
+    <canvas id="gameCanvas"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
 
-<div id="score">Score: 0</div>
+        // Adapter la taille du canvas à la fenêtre
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
 
-<div id="gameOverMessage">
-  <div>Chaque essai te rapproche du ciel, mon amour.</div>
-  <button id="restartBtn">Rejouer</button>
-</div>
+        // Variables du jeu
+        let gravity = 0.5;
+        let jump = -10;
+        let playerY = canvas.height / 2;
+        let playerVelocity = 0;
+        let obstacles = [];
+        let score = 0;
+        let gameOver = false;
+        let gameStarted = false;
+        let frame = 0;
+        let obstacleFrequency = 150; // Fréquence d'apparition des obstacles
 
-<canvas id="gameCanvas"></canvas>
-
-<script>
-(() => {
-  const canvas = document.getElementById('gameCanvas');
-  const ctx = canvas.getContext('2d');
-  const scoreEl = document.getElementById('score');
-  const gameOverMessage = document.getElementById('gameOverMessage');
-  const restartBtn = document.getElementById('restartBtn');
-
-  let W, H;
-  function resize() {
-    W = window.innerWidth;
-    H = window.innerHeight;
-    canvas.width = W;
-    canvas.height = H;
-  }
-  resize();
-  window.addEventListener('resize', resize);
-
-  // GAME VARIABLES
-  let bird, pipes, frameCount, score, gameOver;
-  let buildings, ground;
-
-  // CONSTANTS
-  const gravity = 0.6;
-  const jumpForce = -11;
-  const pipeWidth = W * 0.12;
-  const pipeGap = H * 0.32;
-  const groundHeight = H * 0.12;
-
-  // Bird (Heart) with pulsating animation
-  function createBird() {
-    return {
-      x: W * 0.25,
-      y: H / 2,
-      baseSize: 42,
-      size: 42,
-      velocity: 0,
-      pulseDir: 1,
-      pulseSpeed: 0.02,
-      pulseScale: 0,
-      update() {
-        this.velocity += gravity;
-        this.y += this.velocity;
-
-        if(this.y + this.size/2 > H - groundHeight) {
-          this.y = H - groundHeight - this.size/2;
-          this.velocity = 0;
-          gameOver = true;
-        }
-        if(this.y - this.size/2 < 0) {
-          this.y = this.size/2;
-          this.velocity = 0;
-          gameOver = true;
+        // Dessiner le cœur (personnage)
+        function drawHeart(x, y, size) {
+            ctx.beginPath();
+            ctx.moveTo(x, y - size / 2);
+            ctx.bezierCurveTo(x + size / 2, y - size, x + size, y - size / 2, x + size, y);
+            ctx.bezierCurveTo(x + size, y + size / 2, x + size / 2, y + size / 2, x + size / 2, y + size);
+            ctx.bezierCurveTo(x + size / 2, y + size / 2, x, y + size / 2, x, y + size);
+            ctx.bezierCurveTo(x - size / 2, y + size / 2, x - size / 2, y + size / 2, x - size / 2, y + size);
+            ctx.bezierCurveTo(x - size, y + size / 2, x - size, y, x - size, y);
+            ctx.bezierCurveTo(x - size, y - size / 2, x - size / 2, y - size, x, y - size / 2);
+            ctx.closePath();
+            ctx.fillStyle = '#FF69B4'; // Rose pour le cœur
+            ctx.fill();
+            ctx.strokeStyle = '#C71585'; // Bordure plus foncée
+            ctx.stroke();
         }
 
-        this.pulseScale += this.pulseSpeed * this.pulseDir;
-        if(this.pulseScale > 0.05 || this.pulseScale < -0.05) this.pulseDir *= -1;
-        this.size = this.baseSize * (1 + this.pulseScale);
-      },
-      jump() {
-        this.velocity = jumpForce;
-      },
-      draw() {
-        const x = this.x;
-        const y = this.y;
-        const size = this.size;
-        const topCurveHeight = size * 0.3;
+        // Dessiner un arbre (obstacle)
+        function drawTree(x, y, height, width) {
+            // Tronc
+            ctx.fillStyle = '#8B4513'; // Marron
+            ctx.fillRect(x - width / 2, y, width, height);
 
-        ctx.shadowColor = 'rgba(255,80,80,0.8)';
-        ctx.shadowBlur = size * 0.35;
+            // Feuillage (3 cercles pour simuler les branches)
+            ctx.fillStyle = '#228B22'; // Vert foncé
+            ctx.beginPath();
+            ctx.arc(x, y - height / 2, width * 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(x - width, y - height / 3, width, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(x + width, y - height / 3, width, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
-        const grad = ctx.createLinearGradient(x - size/2, y, x + size/2, y + size);
-        grad.addColorStop(0, '#ff4b5c');
-        grad.addColorStop(0.5, '#d63031');
-        grad.addColorStop(1, '#8b1a1a');
-        ctx.fillStyle = grad;
+        // Dessiner le fond (petite ville, nuages, sol)
+        function drawBackground() {
+            // Ciel (dégradé)
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#87CEEB');
+            gradient.addColorStop(1, '#E0FFFF');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        ctx.beginPath();
-        ctx.moveTo(x, y + topCurveHeight);
-        ctx.bezierCurveTo(x, y,
-          x - size / 2, y,
-          x - size / 2, y + topCurveHeight);
-        ctx.bezierCurveTo(x - size / 2, y + (size + topCurveHeight) / 2,
-          x, y + (size + topCurveHeight) / 1.2,
-          x, y + size);
-        ctx.bezierCurveTo(x, y + (size + topCurveHeight) / 1.2,
-          x + size / 2, y + (size + topCurveHeight) / 2,
-          x + size / 2, y + topCurveHeight);
-        ctx.bezierCurveTo(x + size / 2, y,
-          x, y,
-          x, y + topCurveHeight);
-        ctx.closePath();
-        ctx.fill();
+            // Nuages (plusieurs nuages défilants)
+            ctx.fillStyle = '#FFFFFF';
+            for (let i = 0; i < 5; i++) {
+                let cloudX = (frame * 0.5 + i * 200) % (canvas.width + 200) - 200;
+                ctx.beginPath();
+                ctx.arc(cloudX + 50, 100 + i * 50, 50, 0, Math.PI * 2);
+                ctx.arc(cloudX + 100, 100 + i * 50, 60, 0, Math.PI * 2);
+                ctx.arc(cloudX + 150, 100 + i * 50, 50, 0, Math.PI * 2);
+                ctx.fill();
+            }
 
-        // Glossy highlight
-        const glossGrad = ctx.createRadialGradient(x - size*0.15, y - size*0.3, size*0.05, x - size*0.1, y - size*0.35, size*0.25);
-        glossGrad.addColorStop(0, 'rgba(255,255,255,0.8)');
-        glossGrad.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = glossGrad;
-        ctx.fill();
+            // Sol (herbe verte avec petites maisons)
+            ctx.fillStyle = '#32CD32'; // Vert herbe
+            ctx.fillRect(0, canvas.height - 50, canvas.width, 50);
 
-        ctx.lineWidth = 3;
-        ctx.shadowColor = 'transparent';
-        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-        ctx.stroke();
-      }
-    };
-  }
+            // Petites maisons défilantes
+            for (let i = 0; i < 3; i++) {
+                let houseX = (frame * 2 + i * 300) % (canvas.width + 300) - 300;
+                // Maison
+                ctx.fillStyle = '#FFD700'; // Jaune
+                ctx.fillRect(houseX, canvas.height - 100, 80, 50);
+                // Toit
+                ctx.beginPath();
+                ctx.moveTo(houseX - 10, canvas.height - 100);
+                ctx.lineTo(houseX + 40, canvas.height - 130);
+                ctx.lineTo(houseX + 90, canvas.height - 100);
+                ctx.closePath();
+                ctx.fillStyle = '#8B0000'; // Rouge foncé
+                ctx.fill();
+                // Fenêtre
+                ctx.fillStyle = '#ADD8E6';
+                ctx.fillRect(houseX + 20, canvas.height - 80, 20, 20);
+            }
+        }
 
-  // Pipe class (detailed wood texture)
-  class Pipe {
-    constructor(x) {
-      this.x = x;
-      this.width = pipeWidth;
-      this.gap = pipeGap;
-      const minHeight = 70;
-      this.topHeight = minHeight + Math.random() * (H - groundHeight - this.gap - minHeight);
-      this.passed = false;
-    }
-    update() {
-      this.x -= 4;
-    }
-    draw() {
-      this.drawWoodPipe(this.x, 0, this.width, this.topHeight);
-      const bottomY = this.topHeight + this.gap;
-      this.drawWoodPipe(this.x, bottomY, this.width, H - groundHeight - bottomY);
-    }
-    drawWoodPipe(x, y, width, height) {
-      // Base wood gradient
-      const grad = ctx.createLinearGradient(x, y, x + width, y + height);
-      grad.addColorStop(0, '#a37b42');
-      grad.addColorStop(0.5, '#6d4b1c');
-      grad.addColorStop(1, '#503b17');
-      ctx.fillStyle = grad;
-      ctx.fillRect(x, y, width, height);
+        // Générer un obstacle (arbre haut et bas avec un gap)
+        function generateObstacle() {
+            let gap = 200; // Espace entre les deux arbres
+            let topHeight = Math.random() * (canvas.height / 2 - gap / 2) + 100;
+            let bottomHeight = canvas.height - topHeight - gap - 50; // -50 pour le sol
+            obstacles.push({
+                x: canvas.width,
+                topHeight: topHeight,
+                bottomHeight: bottomHeight,
+                width: 80,
+                passed: false
+            });
+        }
 
-      // Shadow left
-      ctx.shadowColor = 'rgba(0,0,0,0.4)';
-      ctx.shadowBlur = 10;
-      ctx.fillRect(x, y, width*0.2, height);
-      ctx.shadowBlur = 0;
+        // Mettre à jour les obstacles
+        function updateObstacles() {
+            for (let i = 0; i < obstacles.length; i++) {
+                obstacles[i].x -= 3; // Vitesse de défilement
 
-      // Wood grain texture
-      ctx.strokeStyle = '#4c3310';
-      ctx.lineWidth = 1.5;
-      for(let i = 0; i < height; i += 7) {
-        ctx.beginPath();
-        const offset = (i % 14) < 7 ? 0 : 3;
-        ctx.moveTo(x, y + i + offset);
-        ctx.bezierCurveTo(x + width/3, y + i + 8 + offset, x + 2*width/3, y + i - 8 + offset, x + width, y + i + offset);
-        ctx.stroke();
-      }
+                // Dessiner arbre du haut (inversé pour pendre du haut)
+                drawTree(obstacles[i].x + obstacles[i].width / 2, 0, obstacles[i].topHeight, obstacles[i].width);
 
-      // Vertical cracks
-      ctx.strokeStyle = '#3b2a0a';
-      ctx.lineWidth = 1.8;
-      for(let i = 0; i < width; i += 7) {
-        ctx.beginPath();
-        const crackX = x + i + Math.sin
-      
+                // Dessiner arbre du bas
+                drawTree(obstacles[i].x + obstacles[i].width / 2, canvas.height - obstacles[i].bottomHeight - 50, obstacles[i].bottomHeight, obstacles[i].width);
+
+                // Vérifier collision
+                if (obstacles[i].x < 50 && obstacles[i].x + obstacles[i].width > 0) {
+                    if (playerY < obstacles[i].topHeight || playerY + 40 > canvas.height - obstacles[i].bottomHeight - 50) {
+                        gameOver = true;
+                    }
+                }
+
+                // Score
+                if (obstacles[i].x < 0 && !obstacles[i].passed) {
+                    score++;
+                    obstacles[i].passed = true;
+                }
+
+                // Supprimer les obstacles passés
+                if (obstacles[i].x < -obstacles[i].width) {
+                    obstacles.splice(i, 1);
+                    i--;
+                }
+            }
+        }
+
+        // Boucle de jeu
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            drawBackground();
+
+            if (!gameStarted) {
+                ctx.font = '30px Arial';
+                ctx.fillStyle = '#000';
+                ctx.fillText('Appuie sur Espace pour commencer ! ❤️', canvas.width / 2 - 200, canvas.height / 2);
+            } else if (gameOver) {
+                ctx.font = '40px Arial';
+                ctx.fillStyle = '#FF0000';
+                ctx.fillText('Game Over ! Score: ' + score, canvas.width / 2 - 150, canvas.height / 2);
+                ctx.font = '20px Arial';
+                ctx.fillText('Appuie sur Espace pour recommencer', canvas.width / 2 - 150, canvas.height / 2 + 50);
+            } else {
+                // Physique du joueur
+                playerVelocity += gravity;
+                playerY += playerVelocity;
+
+                // Limites
+                if (playerY > canvas.height - 90) { // -90 pour sol et taille cœur
+                    playerY = canvas.height - 90;
+                    gameOver = true;
+                }
+                if (playerY < 0) playerY = 0;
+
+                drawHeart(50, playerY, 20); // Taille du cœur
+
+                // Générer obstacles
+                if (frame % obstacleFrequency === 0) {
+                    generateObstacle();
+                }
+
+                updateObstacles();
+
+                // Afficher score
+                ctx.font = '20px Arial';
+                ctx.fillStyle = '#000';
+                ctx.fillText('Score: ' + score, 10, 30);
+
+                frame++;
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Événements
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                if (!gameStarted) {
+                    gameStarted = true;
+                    playerY = canvas.height / 2;
+                    playerVelocity = 0;
+                    obstacles = [];
+                    score = 0;
+                    frame = 0;
+                } else if (gameOver) {
+                    gameOver = false;
+                    gameStarted = true;
+                    playerY = canvas.height / 2;
+                    playerVelocity = 0;
+                    obstacles = [];
+                    score = 0;
+                    frame = 0;
+                } else {
+                    playerVelocity = jump;
+                }
+            }
+        });
+
+        // Adapter au redimensionnement
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+        gameLoop();
+    </script>
+</body>
+</html>
