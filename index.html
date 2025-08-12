@@ -6,19 +6,10 @@
 <title>Flappy Heart Réaliste</title>
 <style>
   html, body {
-    margin:0; padding:0; overflow:hidden; height:100%;
-    background: linear-gradient(to top, #87ceeb 0%, #b5d0f7 60%, #dff2ff 100%);
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0; padding: 0; overflow: hidden; height: 100%;
+    background: linear-gradient(to top, #87ceeb, #cfe8ff);
+    font-family: Arial, sans-serif;
     user-select: none;
-  }
-  canvas {
-    display: block;
-    position: fixed;
-    top:0; left:0;
-    width: 100vw;
-    height: 100vh;
-    background: transparent;
-    z-index: 1;
   }
   #score {
     position: fixed;
@@ -32,8 +23,7 @@
   }
   #gameOverMessage {
     position: fixed;
-    top: 50%;
-    left: 50%;
+    top: 50%; left: 50%;
     transform: translate(-50%, -50%);
     background: rgba(255 255 255 / 0.95);
     padding: 30px 40px;
@@ -57,17 +47,23 @@
     border: none;
     border-radius: 15px;
     cursor: pointer;
-    box-shadow: 0 6px 18px rgba(214, 48, 49, 0.8);
   }
   #restartBtn:hover {
     background: #b82727;
+  }
+  canvas {
+    display: block;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background: transparent;
+    z-index: 1;
   }
 </style>
 </head>
 <body>
 
 <div id="score">Score: 0</div>
-
 <div id="gameOverMessage">
   <div>Comme c’est pas grave mon amour,<br>chaque essai te rapproche plus près du ciel.</div>
   <button id="restartBtn">Rejouer</button>
@@ -97,18 +93,12 @@
   let bird, pipes, frameCount, score, gameOver;
 
   // CONSTANTS
-  const gravity = 0.75;
-  const jumpForce = -13;
-  const pipeWidthRatio = 0.12;
-  const pipeGapRatio = 0.35;
-  const groundHeightRatio = 0.14;
+  const gravity = 0.7;
+  const jumpForce = -12;
+  const pipeWidth = 80;
+  const pipeGap = H * 0.35;
+  const groundHeight = H * 0.14;
   const pipeSpeed = 5;
-
-  let pipeWidth, pipeGap, groundHeight;
-
-  // CLOUDS VARIABLES
-  const cloudCount = 15;
-  let clouds = [];
 
   // Bird object (heart)
   function createBird() {
@@ -140,7 +130,6 @@
         const y = this.y;
         const size = this.size;
 
-        // Heart shape using path with gradient fill for realism
         const grad = ctx.createRadialGradient(x, y, size*0.1, x, y, size*0.55);
         grad.addColorStop(0, '#ff2a48');
         grad.addColorStop(0.5, '#b21028');
@@ -170,7 +159,7 @@
     };
   }
 
-  // Pipe class (trunks with more texture)
+  // Pipe class (simplified trunks)
   class Pipe {
     constructor(x) {
       this.x = x;
@@ -184,143 +173,202 @@
       this.x -= pipeSpeed;
     }
     draw() {
-      this.drawTrunk(this.x, 0, this.width, this.topHeight);
-      const bottomY = this.topHeight + this.gap;
-      this.drawTrunk(this.x, bottomY, this.width, H - groundHeight - bottomY);
-    }
-    drawTrunk(x, y, width, height) {
-      // Wood texture with gradient
-      const woodGradient = ctx.createLinearGradient(x, y, x + width, y + height);
-      woodGradient.addColorStop(0, '#4b2e05');
-      woodGradient.addColorStop(0.5, '#7a5521');
-      woodGradient.addColorStop(1, '#3a1e00');
+      // Draw pipe trunks as rectangles with simple brown gradient
+      const grad = ctx.createLinearGradient(this.x, 0, this.x + this.width, 0);
+      grad.addColorStop(0, '#5d3a00');
+      grad.addColorStop(1, '#b27300');
 
-      ctx.fillStyle = woodGradient;
-      ctx.fillRect(x, y, width, height);
+      ctx.fillStyle = grad;
 
-      // Bark texture lines
-      ctx.strokeStyle = 'rgba(58,30,0,0.6)';
-      ctx.lineWidth = 2;
+      // Top pipe
+      ctx.fillRect(this.x, 0, this.width, this.topHeight);
 
-      for(let i=3; i<width-3; i+=5){
-        ctx.beginPath();
-        ctx.moveTo(x+i, y);
-        ctx.lineTo(x+i-1.5, y+height);
-        ctx.stroke();
-      }
+      // Bottom pipe
+      ctx.fillRect(this.x, this.topHeight + this.gap, this.width, H - groundHeight - (this.topHeight + this.gap));
 
-      for(let i=0; i<height; i+=10){
-        ctx.beginPath();
-        const offset = (i%20<10)?0:4;
-        ctx.moveTo(x, y+i+offset);
-        ctx.bezierCurveTo(x + width/3, y+i+10+offset, x + 2*width/3, y+i-10+offset, x + width, y+i+offset);
-        ctx.stroke();
-      }
-
-      // Dark outline
-      ctx.strokeStyle = '#2f1e00';
+      // Outline
+      ctx.strokeStyle = '#422900';
       ctx.lineWidth = 4;
-      ctx.strokeRect(x, y, width, height);
+      ctx.strokeRect(this.x, 0, this.width, this.topHeight);
+      ctx.strokeRect(this.x, this.topHeight + this.gap, this.width, H - groundHeight - (this.topHeight + this.gap));
     }
   }
 
-  // Cloud class - soft realistic shapes
+  // Ground
+  function drawGround() {
+    const grad = ctx.createLinearGradient(0, H - groundHeight, 0, H);
+    grad.addColorStop(0, '#556b2f');
+    grad.addColorStop(1, '#4a5d22');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, H - groundHeight, W, groundHeight);
+
+    // Grass blades simple pattern
+    ctx.fillStyle = '#6b8e23';
+    for(let i=0; i<W; i+=15){
+      ctx.beginPath();
+      ctx.moveTo(i, H - groundHeight);
+      ctx.lineTo(i+5, H - groundHeight - 20);
+      ctx.lineTo(i+10, H - groundHeight);
+      ctx.fill();
+    }
+  }
+
+  // Clouds - simple white circles groups, moves slowly
   class Cloud {
     constructor() {
       this.x = Math.random() * W;
-      this.y = Math.random() * H * 0.35 + 20;
-      this.size = 50 + Math.random() * 70;
-      this.speed = 0.2 + Math.random() * 0.4;
-      this.opacity = 0.2 + Math.random() * 0.3;
+      this.y = Math.random() * H * 0.3 + 20;
+      this.size = 50 + Math.random() * 40;
+      this.speed = 0.3 + Math.random() * 0.4;
+      this.opacity = 0.4 + Math.random() * 0.3;
     }
     update() {
       this.x += this.speed;
       if(this.x - this.size > W) this.x = -this.size;
     }
     draw() {
-      const x = this.x;
-      const y = this.y;
-      const size = this.size;
-      const o = this.opacity;
-
-      ctx.fillStyle = `rgba(255, 255, 255, ${o})`;
+      ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
       ctx.beginPath();
-
-      // Draw 5 overlapping circles for soft cloud shape
-      ctx.arc(x, y, size*0.4, Math.PI*0.5, Math.PI*1.5);
-      ctx.arc(x + size*0.35, y - size*0.2, size*0.35, Math.PI, 0);
-      ctx.arc(x + size*0.75, y - size*0.1, size*0.3, Math.PI, 0);
-      ctx.arc(x + size*1.1, y + size*0.2, size*0.4, 0, Math.PI*1.5);
-      ctx.arc(x + size*0.5, y + size*0.3, size*0.55, 0, Math.PI*2);
-
+      ctx.arc(this.x, this.y, this.size * 0.4, Math.PI * 0.5, Math.PI * 1.5);
+      ctx.arc(this.x + this.size * 0.35, this.y - this.size * 0.2, this.size * 0.35, Math.PI, 0);
+      ctx.arc(this.x + this.size * 0.75, this.y - this.size * 0.1, this.size * 0.3, Math.PI, 0);
+      ctx.arc(this.x + this.size * 1.1, this.y + this.size * 0.2, this.size * 0.4, 0, Math.PI * 1.5);
+      ctx.arc(this.x + this.size * 0.5, this.y + this.size * 0.3, this.size * 0.55, 0, Math.PI * 2);
       ctx.closePath();
-      ctx.fill();
-
-      // subtle shading on cloud bottom
-      let grad = ctx.createRadialGradient(x + size*0.6, y + size*0.4, size*0.3, x + size*0.6, y + size*0.7, size*0.9);
-      grad.addColorStop(0, `rgba(255,255,255,${o*0.5})`);
-      grad.addColorStop(1, `rgba(200,200,200,0)`);
-
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(x + size*0.6, y + size*0.4, size*0.9, 0, Math.PI*2);
       ctx.fill();
     }
   }
 
-  // Trees - realistic pine trees
-  function drawPineTree(x, y, scale=1) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(scale, scale);
-
-    // Trunk
-    ctx.fillStyle = '#4b2e05';
-    ctx.fillRect(-8, 0, 16, 50);
-
-    // Pine leaves layers
-    const greens = ['#21572f','#2a7b32','#3c8f3d','#4ca749','#5cc855'];
-    ctx.strokeStyle = '#154317';
-    ctx.lineWidth = 2;
-
-    for(let i=0; i<5; i++){
-      ctx.fillStyle = greens[i];
-      ctx.beginPath();
-      const baseY = 50 - i*22;
-      ctx.moveTo(0, baseY - 60);
-      ctx.lineTo(-45 + i*7, baseY);
-      ctx.lineTo(45 - i*7, baseY);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    }
-    ctx.restore();
+  let clouds = [];
+  function initClouds() {
+    clouds = [];
+    for(let i=0; i<12; i++) clouds.push(new Cloud());
   }
 
-  // Houses - simple realistic style
-  function drawHouse(x, y, scale=1) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(scale, scale);
+  function initGame() {
+    bird = createBird();
+    pipes = [];
+    frameCount = 0;
+    score = 0;
+    gameOver = false;
+    initClouds();
+    scoreEl.textContent = 'Score: 0';
+    gameOverMessage.style.display = 'none';
 
-    // Base walls
-    ctx.fillStyle = '#c5b179';
-    ctx.fillRect(-45, -40, 90, 70);
-    ctx.strokeStyle = '#9b7e3c';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(-45, -40, 90, 70);
+    // Add initial pipes spaced apart
+    for(let i=0; i<4; i++) {
+      pipes.push(new Pipe(W + i * (pipeWidth + 280)));
+    }
+  }
 
-    // Roof
-    ctx.fillStyle = '#ab2e00';
-    ctx.beginPath();
-    ctx.moveTo(-55, -40);
-    ctx.lineTo(0, -90);
-    ctx.lineTo(55, -40);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+  function checkCollision(bird, pipe) {
+    // Bird bounds
+    const bx1 = bird.x - bird.size/2;
+    const bx2 = bird.x + bird.size/2;
+    const by1 = bird.y - bird.size/2;
+    const by2 = bird.y + bird.size/2;
 
-    // Windows
-    ctx.fillStyle = '#ffffea';
-    ctx.fillRect(-30, -25, 25, 25);
-    ctx.strokeRect(-30, -25,
+    // Top pipe bounds
+    const px1 = pipe.x;
+    const px2 = pipe.x + pipe.width;
+    const py1_top = 0;
+    const py2_top = pipe.topHeight;
+
+    // Bottom pipe bounds
+    const py1_bot = pipe.topHeight + pipe.gap;
+    const py2_bot = H - groundHeight;
+
+    // Check overlap with top pipe
+    if(bx2 > px1 && bx1 < px2 && by1 < py2_top) return true;
+    // Check overlap with bottom pipe
+    if(bx2 > px1 && bx1 < px2 && by2 > py1_bot) return true;
+
+    return false;
+  }
+
+  function update() {
+    if(gameOver) return;
+
+    bird.update();
+
+    pipes.forEach(pipe => pipe.update());
+
+    // Remove pipes that left screen and add new ones
+    if(pipes.length > 0 && pipes[0].x + pipes[0].width < 0) {
+      pipes.shift();
+      const lastX = pipes.length > 0 ? pipes[pipes.length -1].x : W;
+      pipes.push(new Pipe(lastX + pipeWidth + 280));
+    }
+
+    // Check collisions
+    pipes.forEach(pipe => {
+      if(!pipe.passed && pipe.x + pipe.width < bird.x) {
+        pipe.passed = true;
+        score++;
+        scoreEl.textContent = `Score: ${score}`;
+      }
+      if(checkCollision(bird, pipe)) {
+        gameOver = true;
+      }
+    });
+
+    clouds.forEach(c => c.update());
+
+    if(gameOver) {
+      gameOverMessage.style.display = 'block';
+    }
+  }
+
+  function draw() {
+    // Clear
+    ctx.clearRect(0, 0, W, H);
+
+    // Sky gradient (already body background but redraw for safety)
+    const skyGrad = ctx.createLinearGradient(0,0,0,H);
+    skyGrad.addColorStop(0, '#87ceeb');
+    skyGrad.addColorStop(1, '#cfe8ff');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Draw clouds
+    clouds.forEach(c => c.draw());
+
+    // Draw pipes
+    pipes.forEach(p => p.draw());
+
+    // Draw ground
+    drawGround();
+
+    // Draw bird
+    bird.draw();
+  }
+
+  function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  window.addEventListener('keydown', e => {
+    if(e.code === 'Space' || e.code === 'ArrowUp') {
+      if(!gameOver) bird.jump();
+      else {
+        // ignore key while gameOver
+      }
+    }
+  });
+  window.addEventListener('mousedown', () => {
+    if(!gameOver) bird.jump();
+  });
+
+  restartBtn.addEventListener('click', () => {
+    initGame();
+  });
+
+  initGame();
+  loop();
+})();
+</script>
+
+</body>
+</html>
