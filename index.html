@@ -2,18 +2,16 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-<title>Flappy Heart - Forêt enchantée</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Flappy Heart Forêt</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Baloo+2&display=swap');
-  * {
-    margin: 0; padding: 0; box-sizing: border-box;
-  }
   html, body {
-    height: 100%;
-    overflow: hidden;
+    margin: 0; padding: 0; height: 100%;
     background: linear-gradient(to top, #317d49 0%, #a0d8ef 90%);
     font-family: 'Baloo 2', cursive;
+    overflow: hidden;
+    user-select: none;
   }
   canvas {
     display: block;
@@ -22,24 +20,30 @@
     top: 0; left: 0;
     width: 100vw;
     height: 100vh;
-    touch-action: none;
+  }
+  #score {
+    position: fixed;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 2.5rem;
+    color: #ff4c62;
+    text-shadow: 0 0 10px #ff7392;
+    z-index: 10;
   }
   #message {
     position: fixed;
-    top: 50%;
-    left: 50%;
+    top: 50%; left: 50%;
     transform: translate(-50%, -50%);
-    background: rgba(30, 40, 25, 0.85);
+    background: rgba(30,40,25,0.9);
     color: #f0f7e8;
-    padding: 1.5em 2em;
+    padding: 1.8em 2.5em;
     border-radius: 20px;
     text-align: center;
     font-size: 1.3rem;
-    max-width: 90vw;
     display: none;
-    user-select: none;
-    box-shadow: 0 0 15px #84c885;
-    z-index: 10;
+    z-index: 20;
+    box-shadow: 0 0 20px #84c885;
   }
   #message button {
     margin-top: 1em;
@@ -52,31 +56,16 @@
     font-size: 1.2rem;
     cursor: pointer;
     box-shadow: 0 4px 8px rgba(0,0,0,0.25);
-    transition: background 0.3s ease;
   }
   #message button:hover {
     background: #388e3c;
-  }
-  #score {
-    position: fixed;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 2.2rem;
-    color: #f44336;
-    font-weight: 900;
-    text-shadow: 0 0 6px #ff6b81;
-    user-select: none;
-    z-index: 10;
   }
 </style>
 </head>
 <body>
 
 <canvas id="game"></canvas>
-
 <div id="score">0</div>
-
 <div id="message">
   <p>Ce n’est pas grave mon amour 💔<br>Tu as tout donné, je suis fier de toi.</p>
   <button id="restartBtn">Recommencer</button>
@@ -87,8 +76,7 @@
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
 
-  let W, H, scale;
-
+  let W, H;
   function resize() {
     W = window.innerWidth;
     H = window.innerHeight;
@@ -96,45 +84,44 @@
     canvas.height = H * devicePixelRatio;
     canvas.style.width = W + 'px';
     canvas.style.height = H + 'px';
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.setTransform(1,0,0,1,0,0);
     ctx.scale(devicePixelRatio, devicePixelRatio);
-    scale = Math.min(W/375, H/667);
   }
   resize();
   window.addEventListener('resize', resize);
 
-  // Jeu variables
-  const gravity = 0.5;
-  const jumpForce = -9;
-  const obstacleWidth = 60 * scale;
-  const gapHeight = 140 * scale;
-  const obstacleSpacing = 250 * scale;
-  const scrollSpeed = 2.5 * scale;
+  // Variables jeu
+  const gravity = 0.6;
+  const jump = -10;
+  const obstacleWidth = 70;
+  const gap = 150;
+  const speed = 3;
+  const heartRadius = 25;
 
-  // Le cœur volant
+  // Cœur joueur
   const heart = {
     x: W/4,
     y: H/2,
     vy: 0,
-    size: 38 * scale,
-    pulseTime: 0,
+    pulse: 0,
   };
 
   let obstacles = [];
-  let frames = 0;
+  let frameCount = 0;
   let score = 0;
   let running = true;
 
+  // Score & message DOM
+  const scoreDiv = document.getElementById('score');
   const messageDiv = document.getElementById('message');
   const restartBtn = document.getElementById('restartBtn');
-  const scoreDiv = document.getElementById('score');
 
   restartBtn.onclick = () => {
+    obstacles = [];
+    frameCount = 0;
     score = 0;
     heart.y = H/2;
     heart.vy = 0;
-    obstacles = [];
-    frames = 0;
     running = true;
     messageDiv.style.display = 'none';
     scoreDiv.textContent = '0';
@@ -142,146 +129,148 @@
     loop();
   };
 
-  // Dessine un cœur stylisé dessin animé, qui pulse
-  function drawHeart(x, y, size, pulseScale = 1) {
+  // Dessine cœur pulsant
+  function drawHeart(x, y, radius) {
     ctx.save();
     ctx.translate(x, y);
+    const pulseScale = 1 + 0.05 * Math.sin(heart.pulse);
     ctx.scale(pulseScale, pulseScale);
 
-    const topCurveHeight = size * 0.3;
     ctx.beginPath();
+    const topCurveHeight = radius * 0.3;
     ctx.moveTo(0, topCurveHeight);
-    ctx.bezierCurveTo(0, 0, -size / 2, 0, -size / 2, topCurveHeight);
-    ctx.bezierCurveTo(-size / 2, size / 2, 0, size * 0.75, 0, size);
-    ctx.bezierCurveTo(0, size * 0.75, size / 2, size / 2, size / 2, topCurveHeight);
-    ctx.bezierCurveTo(size / 2, 0, 0, 0, 0, topCurveHeight);
+    ctx.bezierCurveTo(0, 0, -radius/2, 0, -radius/2, topCurveHeight);
+    ctx.bezierCurveTo(-radius/2, radius/2, 0, radius*0.75, 0, radius);
+    ctx.bezierCurveTo(0, radius*0.75, radius/2, radius/2, radius/2, topCurveHeight);
+    ctx.bezierCurveTo(radius/2, 0, 0, 0, 0, topCurveHeight);
     ctx.closePath();
 
-    const grad = ctx.createRadialGradient(0, size/2, size*0.1, 0, size/2, size);
+    const grad = ctx.createRadialGradient(0, radius/2, radius*0.1, 0, radius/2, radius);
     grad.addColorStop(0, '#ff4c62');
     grad.addColorStop(1, '#a80020');
     ctx.fillStyle = grad;
 
     ctx.shadowColor = 'rgba(255, 76, 98, 0.9)';
-    ctx.shadowBlur = 14;
+    ctx.shadowBlur = 15;
 
     ctx.fill();
     ctx.restore();
   }
 
-  // Arbre stylisé (tronc + feuillage arrondi)
-  function drawTree(x, y, height, sway=0) {
+  // Dessine arbre (tronc + feuilles)
+  function drawTree(x, y, height) {
     ctx.save();
-    ctx.translate(x + sway, y);
+    ctx.translate(x, y);
 
     // Tronc
     ctx.fillStyle = '#4a2e0f';
     ctx.shadowColor = 'rgba(0,0,0,0.15)';
-    ctx.shadowBlur = 4;
-    ctx.fillRect(-8 * scale, 0, 16 * scale, height);
+    ctx.shadowBlur = 5;
+    ctx.fillRect(-10, 0, 20, height);
 
-    // Feuillage (3 cercles)
+    // Feuillage (3 cercles verts)
     ctx.fillStyle = '#3a7d3c';
     ctx.shadowColor = 'rgba(20,60,15,0.5)';
-    ctx.shadowBlur = 10;
-    const r = 24 * scale;
+    ctx.shadowBlur = 12;
+    const r = 30;
     ctx.beginPath();
-    ctx.ellipse(0, -r * 0.7, r, r * 0.75, 0, 0, Math.PI*2);
-    ctx.ellipse(-r, -r * 1.3, r, r, 0, 0, Math.PI*2);
-    ctx.ellipse(r, -r * 1.3, r, r, 0, 0, Math.PI*2);
+    ctx.ellipse(0, -r*0.7, r, r*0.8, 0, 0, Math.PI*2);
+    ctx.ellipse(-r, -r*1.3, r, r, 0, 0, Math.PI*2);
+    ctx.ellipse(r, -r*1.3, r, r, 0, 0, Math.PI*2);
     ctx.fill();
 
     ctx.restore();
   }
 
-  // Nuage doux stylisé
-  function drawCloud(x, y, size) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.shadowColor = 'rgba(200,200,210,0.8)';
-    ctx.shadowBlur = 8;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, size * 0.6, size * 0.4, 0, 0, Math.PI * 2);
-    ctx.ellipse(size * 0.5, -size * 0.1, size * 0.55, size * 0.45, 0, 0, Math.PI * 2);
-    ctx.ellipse(size * 0.9, size * 0.1, size * 0.4, size * 0.3, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-
-  // Branches fines en bas des obstacles pour effet forêt
-  function drawBranches(x, y, length, sway=0) {
-    ctx.save();
-    ctx.translate(x + sway, y);
-    ctx.strokeStyle = '#265318';
-    ctx.lineWidth = 3 * scale;
-    ctx.lineCap = 'round';
-
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(length * 0.6, -length * 0.5);
-    ctx.moveTo(0, 0);
-    ctx.lineTo(-length * 0.5, -length * 0.7);
-    ctx.stroke();
-
-    // petites feuilles
-    ctx.fillStyle = '#3a7d3c';
-    ctx.beginPath();
-    ctx.ellipse(length * 0.6, -length * 0.5, 6 * scale, 10 * scale, 0.5, 0, Math.PI * 2);
-    ctx.ellipse(-length * 0.5, -length * 0.7, 6 * scale, 10 * scale, -0.5, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
-  }
-
-  // Obstacle arbre (haut et bas avec trou)
-  function Obstacle(x) {
-    this.x = x;
-    this.heightTop = 80 * scale + Math.random() * (H - gapHeight - 160 * scale);
-    this.heightBottom = H - this.heightTop - gapHeight;
-    this.swayPhase = Math.random() * Math.PI * 2;
-  }
-
-  Obstacle.prototype.update = function() {
-    this.x -= scrollSpeed;
-    this.swayPhase += 0.03;
-  }
-
-  Obstacle.prototype.draw = function() {
-    // Sway = oscillation horizontale douce
-    const swayX = Math.sin(this.swayPhase) * 6 * scale;
-
-    // arbre bas
-    drawTree(this.x + swayX, H - this.heightBottom, this.heightBottom);
-
-    // arbre haut (retourné)
-    ctx.save();
-    ctx.translate(this.x + swayX, this.heightTop);
-    ctx.scale(1, -1);
-    drawTree(0, 0, this.heightTop);
-    ctx.restore();
-
-    // branches supplémentaires
-    drawBranches(this.x + swayX, H - this.heightBottom, 40 * scale, swayX/2);
-    drawBranches(this.x + swayX, this.heightTop, 40 * scale, swayX/2);
+  // Obstacle : deux arbres avec espace
+  class Obstacle {
+    constructor(x) {
+      this.x = x;
+      this.topHeight = 80 + Math.random()*(H - gap - 160);
+      this.bottomHeight = H - this.topHeight - gap;
+    }
+    update() {
+      this.x -= speed;
+    }
+    draw() {
+      drawTree(this.x, 0, this.topHeight);
+      ctx.save();
+      ctx.translate(this.x, H);
+      ctx.scale(1, -1);
+      drawTree(0, 0, this.bottomHeight);
+      ctx.restore();
+    }
+    collides(cx, cy, cr) {
+      // Cercle vs rectangle collision (approx arbre tronc)
+      // Tronc rect top
+      if (cx + cr > this.x -10 && cx - cr < this.x + 10) {
+        if (cy - cr < this.topHeight) return true;
+        if (cy + cr > H - this.bottomHeight) return true;
+      }
+      return false;
+    }
   }
 
   function addObstacle() {
-    const lastX = obstacles.length ? obstacles[obstacles.length -1].x : W + 100 * scale;
-    obstacles.push(new Obstacle(lastX + obstacleSpacing));
+    const lastX = obstacles.length ? obstacles[obstacles.length -1].x : W + 150;
+    obstacles.push(new Obstacle(lastX + 250));
   }
 
-  function checkCollision(rectX, rectY, rectW, rectH, circleX, circleY, circleR) {
-    // simple AABB to circle collision test
-    const closestX = Math.max(rectX, Math.min(circleX, rectX + rectW));
-    const closestY = Math.max(rectY, Math.min(circleY, rectY + rectH));
-
-    const dx = circleX - closestX;
-    const dy = circleY - closestY;
-
-    return (dx * dx + dy * dy) < (circleR * circleR);
+  // Nuages
+  const clouds = [];
+  for(let i=0; i<7; i++) {
+    clouds.push({
+      x: Math.random()*W,
+      y: Math.random()*H*0.5,
+      size: 40 + Math.random()*60,
+      speed: 0.3 + Math.random()*0.5,
+    });
+  }
+  function drawCloud(x, y, size) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.shadowColor = 'rgba(200,200,210,0.8)';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, size*0.6, size*0.4, 0, 0, Math.PI*2);
+    ctx.ellipse(size*0.5, -size*0.1, size*0.55, size*0.45, 0, 0, Math.PI*2);
+    ctx.ellipse(size*0.9, size*0.1, size*0.4, size*0.3, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
   }
 
-  function showMessage() {
+  // Contrôle simple : clic ou espace = saut
+  function jumpAction() {
+    if (!running) return;
+    heart.vy = jump;
+  }
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      jumpAction();
+    }
+  });
+  window.addEventListener('mousedown', e => {
+    jumpAction();
+  });
+  window.addEventListener('touchstart', e => {
+    e.preventDefault();
+    jumpAction();
+  }, {passive:false});
+
+  // Fin de partie
+  function gameOver() {
     running = false;
-    message
+    messageDiv.style.display = 'block';
+  }
+
+  // Boucle jeu
+  function loop() {
+    if (!running) return;
+
+    frameCount++;
+    ctx.clearRect(0, 0, W, H);
+
+    // Fond nuages
+    for (let c
