@@ -3,17 +3,31 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Flappy Heart Simple</title>
+<title>Flappy Heart</title>
 <style>
   * { margin:0; padding:0; box-sizing: border-box; }
   html, body {
     width: 100%; height: 100%; overflow: hidden;
     background: linear-gradient(to top, #87ceeb, #d0f0ff);
-    font-family: Arial, sans-serif;
+    font-family: 'Comic Sans MS', cursive, sans-serif;
   }
   canvas {
     display: block;
     background: transparent;
+  }
+  #message {
+    position: fixed;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 28px;
+    font-weight: bold;
+    text-align: center;
+    text-shadow: 2px 2px 6px #000;
+    user-select: none;
+    display: none;
+    width: 80%;
+    max-width: 400px;
   }
   #score {
     position: fixed;
@@ -29,11 +43,15 @@
 </head>
 <body>
 <div id="score">0</div>
+<div id="message">C’est pas grave mon amour,<br> chaque essai te rapproche plus prêt du ciel 💖</div>
 <canvas id="gameCanvas"></canvas>
 <script>
 (() => {
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
+  const message = document.getElementById('message');
+  const scoreEl = document.getElementById('score');
+
   let W, H;
 
   function resize() {
@@ -54,7 +72,7 @@
   let groundHeight;
 
   let bird, pipes, score, frameCount, gameOver;
-  const scoreEl = document.getElementById('score');
+  let animationId;
 
   function createBird() {
     return {
@@ -81,6 +99,7 @@
         const x = this.x;
         const y = this.y;
         const s = this.size;
+        // coeur dessin animé
         ctx.fillStyle = 'red';
         ctx.beginPath();
         const topCurveHeight = s * 0.3;
@@ -123,12 +142,11 @@
       this.x -= pipeSpeed;
     }
     draw() {
+      // Tronc marron avec anneaux
       ctx.fillStyle = '#6b4226';
-      // Top pipe
       ctx.fillRect(this.x, 0, this.width, this.topHeight);
-      // Bottom pipe
       ctx.fillRect(this.x, this.topHeight + this.gap, this.width, H - groundHeight - (this.topHeight + this.gap));
-      // Rings
+
       ctx.strokeStyle = '#8b5e3c';
       ctx.lineWidth = 3;
       const ringSpacing = 20;
@@ -151,6 +169,34 @@
     }
   }
 
+  function drawCloud(x, y, scale=1) {
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, 30*scale, 20*scale, 0, 0, Math.PI*2);
+    ctx.ellipse(x + 25*scale, y + 10*scale, 30*scale, 25*scale, 0, 0, Math.PI*2);
+    ctx.ellipse(x + 50*scale, y, 30*scale, 20*scale, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  function drawGround() {
+    const grassHeight = groundHeight;
+    // sol vert
+    ctx.fillStyle = '#2ecc71';
+    ctx.fillRect(0, H - grassHeight, W, grassHeight);
+
+    // petits brins d’herbe stylisés
+    ctx.strokeStyle = '#27ae60';
+    ctx.lineWidth = 2;
+    for(let i = 0; i < W; i += 15) {
+      let x = i + Math.sin(Date.now() / 500 + i) * 3;
+      ctx.beginPath();
+      ctx.moveTo(x, H - grassHeight);
+      ctx.lineTo(x + 5, H - grassHeight - 20);
+      ctx.lineTo(x + 10, H - grassHeight);
+      ctx.stroke();
+    }
+  }
+
   function initGame() {
     groundHeight = H * groundHeightRatio;
     bird = createBird();
@@ -159,6 +205,7 @@
     score = 0;
     gameOver = false;
     scoreEl.textContent = '0';
+    message.style.display = 'none';
   }
 
   function createPipe() {
@@ -176,34 +223,33 @@
     const by1 = bird.y - bird.size/2;
     const by2 = bird.y + bird.size/2;
 
-    // pipe top rectangle
     const px1 = pipe.x;
     const px2 = pipe.x + pipe.width;
     const py1 = 0;
     const py2 = pipe.topHeight;
-
-    // pipe bottom rectangle
     const py3 = pipe.topHeight + pipe.gap;
     const py4 = H - groundHeight;
 
-    // collision avec le tuyau haut
-    if (!(bx2 < px1 || bx1 > px2 || by1 > py2)) {
-      return true;
-    }
-    // collision avec le tuyau bas
-    if (!(bx2 < px1 || bx1 > px2 || by2 < py3)) {
-      return true;
-    }
+    if (!(bx2 < px1 || bx1 > px2 || by1 > py2)) return true;
+    if (!(bx2 < px1 || bx1 > px2 || by2 < py3)) return true;
     return false;
   }
 
-  function drawGround() {
-    ctx.fillStyle = '#2ecc71'; // vert herbe
-    ctx.fillRect(0, H - groundHeight, W, groundHeight);
+  function drawBackground() {
+    // ciel dégradé est déjà en css, on ajoute quelques nuages animés
+    const cloudCount = 6;
+    const time = Date.now() / 4000;
+    for(let i=0; i<cloudCount; i++) {
+      let x = (time*30 + i*150) % (W + 100) - 100;
+      let y = 50 + 30 * Math.sin(i + time * 2);
+      drawCloud(x, y, 1 + 0.3 * Math.sin(i + time * 3));
+    }
   }
 
   function gameLoop() {
-    ctx.clearRect(0,0,W,H);
+    ctx.clearRect(0, 0, W, H);
+
+    drawBackground();
 
     drawGround();
 
@@ -221,7 +267,6 @@
     bird.update();
     bird.draw();
 
-    // Check collisions and scoring
     pipes.forEach(pipe => {
       if(!pipe.passed && pipe.x + pipe.width < bird.x) {
         score++;
@@ -234,16 +279,8 @@
     });
 
     if(gameOver) {
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      ctx.fillRect(0,0,W,H);
-      ctx.fillStyle = 'white';
-      ctx.font = 'bold 48px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('Game Over', W/2, H/2 - 24);
-      ctx.font = '28px Arial';
-      ctx.fillText(`Score : ${score}`, W/2, H/2 + 20);
-      ctx.font = '20px Arial';
-      ctx.fillText('Clique ou appuie sur espace pour rejouer', W/2, H/2 + 60);
+      message.style.display = 'block';
+      scoreEl.textContent = `Score : ${score}`;
       cancelAnimationFrame(animationId);
       return;
     }
