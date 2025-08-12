@@ -39,6 +39,7 @@
     display: none;
     user-select: none;
     box-shadow: 0 0 15px #84c885;
+    z-index: 10;
   }
   #message button {
     margin-top: 1em;
@@ -56,11 +57,26 @@
   #message button:hover {
     background: #388e3c;
   }
+  #score {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 2.2rem;
+    color: #f44336;
+    font-weight: 900;
+    text-shadow: 0 0 6px #ff6b81;
+    user-select: none;
+    z-index: 10;
+  }
 </style>
 </head>
 <body>
 
 <canvas id="game"></canvas>
+
+<div id="score">0</div>
+
 <div id="message">
   <p>Ce n’est pas grave mon amour 💔<br>Tu as tout donné, je suis fier de toi.</p>
   <button id="restartBtn">Recommencer</button>
@@ -95,7 +111,7 @@
   const obstacleSpacing = 250 * scale;
   const scrollSpeed = 2.5 * scale;
 
-  // Le coeur volant
+  // Le cœur volant
   const heart = {
     x: W/4,
     y: H/2,
@@ -111,6 +127,7 @@
 
   const messageDiv = document.getElementById('message');
   const restartBtn = document.getElementById('restartBtn');
+  const scoreDiv = document.getElementById('score');
 
   restartBtn.onclick = () => {
     score = 0;
@@ -120,6 +137,7 @@
     frames = 0;
     running = true;
     messageDiv.style.display = 'none';
+    scoreDiv.textContent = '0';
     addObstacle();
     loop();
   };
@@ -130,7 +148,6 @@
     ctx.translate(x, y);
     ctx.scale(pulseScale, pulseScale);
 
-    // forme coeur simple
     const topCurveHeight = size * 0.3;
     ctx.beginPath();
     ctx.moveTo(0, topCurveHeight);
@@ -140,13 +157,11 @@
     ctx.bezierCurveTo(size / 2, 0, 0, 0, 0, topCurveHeight);
     ctx.closePath();
 
-    // dégradé rouge vif
     const grad = ctx.createRadialGradient(0, size/2, size*0.1, 0, size/2, size);
     grad.addColorStop(0, '#ff4c62');
     grad.addColorStop(1, '#a80020');
     ctx.fillStyle = grad;
 
-    // ombre douce
     ctx.shadowColor = 'rgba(255, 76, 98, 0.9)';
     ctx.shadowBlur = 14;
 
@@ -213,4 +228,60 @@
     ctx.fillStyle = '#3a7d3c';
     ctx.beginPath();
     ctx.ellipse(length * 0.6, -length * 0.5, 6 * scale, 10 * scale, 0.5, 0, Math.PI * 2);
-    ctx.ellipse(-length * 0.5, -length * 0.7, 6 * scale, 10 * scale, -0.5, 0, Math.PI *
+    ctx.ellipse(-length * 0.5, -length * 0.7, 6 * scale, 10 * scale, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // Obstacle arbre (haut et bas avec trou)
+  function Obstacle(x) {
+    this.x = x;
+    this.heightTop = 80 * scale + Math.random() * (H - gapHeight - 160 * scale);
+    this.heightBottom = H - this.heightTop - gapHeight;
+    this.swayPhase = Math.random() * Math.PI * 2;
+  }
+
+  Obstacle.prototype.update = function() {
+    this.x -= scrollSpeed;
+    this.swayPhase += 0.03;
+  }
+
+  Obstacle.prototype.draw = function() {
+    // Sway = oscillation horizontale douce
+    const swayX = Math.sin(this.swayPhase) * 6 * scale;
+
+    // arbre bas
+    drawTree(this.x + swayX, H - this.heightBottom, this.heightBottom);
+
+    // arbre haut (retourné)
+    ctx.save();
+    ctx.translate(this.x + swayX, this.heightTop);
+    ctx.scale(1, -1);
+    drawTree(0, 0, this.heightTop);
+    ctx.restore();
+
+    // branches supplémentaires
+    drawBranches(this.x + swayX, H - this.heightBottom, 40 * scale, swayX/2);
+    drawBranches(this.x + swayX, this.heightTop, 40 * scale, swayX/2);
+  }
+
+  function addObstacle() {
+    const lastX = obstacles.length ? obstacles[obstacles.length -1].x : W + 100 * scale;
+    obstacles.push(new Obstacle(lastX + obstacleSpacing));
+  }
+
+  function checkCollision(rectX, rectY, rectW, rectH, circleX, circleY, circleR) {
+    // simple AABB to circle collision test
+    const closestX = Math.max(rectX, Math.min(circleX, rectX + rectW));
+    const closestY = Math.max(rectY, Math.min(circleY, rectY + rectH));
+
+    const dx = circleX - closestX;
+    const dy = circleY - closestY;
+
+    return (dx * dx + dy * dy) < (circleR * circleR);
+  }
+
+  function showMessage() {
+    running = false;
+    message
