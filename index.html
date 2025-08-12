@@ -121,7 +121,6 @@
 
 <script>
 (() => {
-  // Récup éléments DOM
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
   const ui = document.getElementById('ui');
@@ -131,7 +130,6 @@
   const gameOverMessage = document.getElementById('gameOverMessage');
   const restartBtn = document.getElementById('restartBtn');
 
-  // Variables de dimensions
   let W, H;
   function resize() {
     W = window.innerWidth;
@@ -142,19 +140,19 @@
   resize();
   window.addEventListener('resize', resize);
 
-  // Constantes
   const gravity = 0.6;
   const jumpForce = -11;
+  const pipeSpeed = 3;
+  const pipeWidthRatio = 0.12;
+  const pipeGapRatio = 0.35;
+  const groundHeightRatio = 0.12;
   let groundHeight;
 
-  // Game variables
   let bird, pipes, frameCount, score, gameOver, animationId;
-  
-  // Meilleur score
+
   let bestScore = parseInt(localStorage.getItem('bestScore') || '0');
   bestScoreEl.textContent = 'Meilleur score : ' + bestScore;
 
-  // Nuages animés
   class Cloud {
     constructor(x, y, scale, speed) {
       this.x = x;
@@ -177,7 +175,15 @@
   }
   let clouds;
 
-  // Création du joueur (coeur)
+  function initClouds() {
+    clouds = [
+      new Cloud(W * 0.2, H * 0.18, 1.2, 0.3),
+      new Cloud(W * 0.5, H * 0.12, 1, 0.2),
+      new Cloud(W * 0.75, H * 0.2, 0.9, 0.25),
+      new Cloud(W * 0.9, H * 0.15, 1.1, 0.22),
+    ];
+  }
+
   function createBird() {
     return {
       x: W * 0.25,
@@ -222,64 +228,3 @@
         );
         ctx.bezierCurveTo(
           x, y + (size + topCurveHeight) / 1.5,
-          x + size / 2, y + (size + topCurveHeight) / 2,
-          x + size / 2, y + topCurveHeight
-        );
-        ctx.bezierCurveTo(
-          x + size / 2, y,
-          x, y,
-          x, y + size / 4
-        );
-        ctx.closePath();
-        ctx.fill();
-
-        // effet lumière douce
-        ctx.fillStyle = 'rgba(255,150,150,0.5)';
-        ctx.beginPath();
-        ctx.moveTo(x - size/6, y + size/3);
-        ctx.bezierCurveTo(
-          x - size/8, y + size/6,
-          x + size/8, y + size/6,
-          x + size/6, y + size/3
-        );
-        ctx.bezierCurveTo(
-          x + size/12, y + size/2,
-          x - size/12, y + size/2,
-          x - size/6, y + size/3
-        );
-        ctx.closePath();
-        ctx.fill();
-      }
-    };
-  }
-
-  // Classe Pipe (tronc)
-  class Pipe {
-    constructor(x, width, topHeight, gap) {
-      this.x = x;
-      this.width = width;
-      this.topHeight = topHeight;
-      this.gap = gap;
-      this.passed = false; // si le bird est passé à gauche
-    }
-    update(speed) {
-      this.x -= speed;
-    }
-    draw() {
-      // tronc marron foncé
-      ctx.fillStyle = '#6b4226';
-      // troncs haut
-      ctx.fillRect(this.x, 0, this.width, this.topHeight);
-      // troncs bas
-      ctx.fillRect(this.x, this.topHeight + this.gap, this.width, H - groundHeight - (this.topHeight + this.gap));
-
-      // anneaux bois (ronds horizontaux)
-      ctx.strokeStyle = '#8b5e3c';
-      ctx.lineWidth = 3;
-      const ringSpacing = 20;
-      // haut
-      let ringCountTop = Math.floor(this.topHeight / ringSpacing);
-      for (let i = 0; i < ringCountTop; i++) {
-        let y = i * ringSpacing + ringSpacing/2;
-        ctx.beginPath();
-        ctx.
