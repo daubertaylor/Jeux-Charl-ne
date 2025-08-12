@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Flappy Heart</title>
+<title>Flappy Heart - Jeu</title>
 <style>
   html, body {
     margin: 0; padding: 0; height: 100%;
-    font-family: Arial, sans-serif;
-    background: linear-gradient(to top, #87ceeb 0%, #d0f0ff 100%);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     overflow: hidden;
+    background: linear-gradient(to top, #87ceeb 0%, #d0f0ff 100%);
     user-select: none;
   }
   #ui {
@@ -29,20 +29,24 @@
     font-size: 3rem;
     color: #d63031;
     margin-bottom: 20px;
+    text-shadow: 1px 1px 2px #7a1b1b;
   }
   #bestScore {
     font-size: 1.5rem;
     margin-bottom: 40px;
+    color: #2d3436;
   }
   button {
     background: #d63031;
     color: white;
     border: none;
-    border-radius: 15px;
-    padding: 18px 40px;
-    font-size: 1.8rem;
+    border-radius: 18px;
+    padding: 18px 48px;
+    font-size: 1.9rem;
     cursor: pointer;
     box-shadow: 0 6px 20px rgba(214, 48, 49, 0.7);
+    transition: background-color 0.3s ease;
+    user-select: none;
   }
   button:hover {
     background: #b22222;
@@ -53,7 +57,7 @@
     left: 50%;
     transform: translateX(-50%);
     font-size: 28px;
-    font-weight: bold;
+    font-weight: 700;
     color: #2c3e50;
     text-shadow: 1px 1px 3px #fff;
     user-select: none;
@@ -67,9 +71,9 @@
     transform: translate(-50%, -50%);
     background: rgba(255 255 255 / 0.95);
     padding: 30px 40px;
-    border-radius: 20px;
+    border-radius: 22px;
     box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-    font-size: 24px;
+    font-size: 26px;
     color: #d63031;
     font-weight: 700;
     text-align: center;
@@ -79,28 +83,29 @@
     display: none;
   }
   #restartBtn {
-    margin-top: 20px;
-    padding: 12px 28px;
-    font-size: 20px;
+    margin-top: 24px;
+    padding: 14px 34px;
+    font-size: 22px;
     font-weight: 700;
     background: #d63031;
     color: white;
     border: none;
-    border-radius: 15px;
+    border-radius: 18px;
     cursor: pointer;
     box-shadow: 0 6px 18px rgba(214, 48, 49, 0.8);
+    user-select: none;
   }
   #restartBtn:hover {
     background: #b82727;
   }
   canvas {
     display: block;
-    background: transparent;
     position: fixed;
     top: 0; left: 0;
     width: 100vw;
     height: 100vh;
     z-index: 1;
+    background: transparent;
   }
 </style>
 </head>
@@ -142,17 +147,55 @@
   resize();
   window.addEventListener('resize', resize);
 
-  let bestScore = parseInt(localStorage.getItem('bestScore') || '0');
-  bestScoreEl.textContent = 'Meilleur score : ' + bestScore;
-
+  // --- Variables de jeu ---
   let bird, pipes, frameCount, score, gameOver, animationId;
 
+  // Constantes
   const gravity = 0.6;
   const jumpForce = -11;
   const pipeWidthRatio = 0.12;
   const pipeGapRatio = 0.33;
-  const groundHeight = H * 0.12;
+  const groundHeightRatio = 0.12;
+  let groundHeight = 0;
 
+  // Meilleur score local
+  let bestScore = parseInt(localStorage.getItem('bestScore') || '0');
+  bestScoreEl.textContent = 'Meilleur score : ' + bestScore;
+
+  // Nuages animés
+  class Cloud {
+    constructor(x, y, scale, speed) {
+      this.x = x;
+      this.y = y;
+      this.scale = scale;
+      this.speed = speed;
+    }
+    update() {
+      this.x += this.speed;
+      if (this.x - 100 > W) this.x = -150;
+    }
+    draw() {
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.beginPath();
+      ctx.ellipse(this.x, this.y, 30 * this.scale, 20 * this.scale, 0, 0, Math.PI * 2);
+      ctx.ellipse(this.x + 30 * this.scale, this.y + 5 * this.scale, 25 * this.scale, 15 * this.scale, 0, 0, Math.PI * 2);
+      ctx.ellipse(this.x - 30 * this.scale, this.y + 5 * this.scale, 25 * this.scale, 15 * this.scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  let clouds = [];
+
+  function initClouds() {
+    clouds = [
+      new Cloud(W * 0.2, H * 0.18, 1.2, 0.3),
+      new Cloud(W * 0.5, H * 0.12, 1, 0.2),
+      new Cloud(W * 0.75, H * 0.2, 0.9, 0.25),
+      new Cloud(W * 0.9, H * 0.15, 1.1, 0.22),
+    ];
+  }
+
+  // Création du joueur (cœur)
   function createBird() {
     return {
       x: W * 0.25,
@@ -181,143 +224,42 @@
         const x = this.x;
         const y = this.y;
         const size = this.size;
+
         ctx.fillStyle = 'red';
         ctx.beginPath();
-        ctx.moveTo(x, y);
-        ctx.lineTo(x - size/2, y + size/3);
-        ctx.lineTo(x - size/2, y + size);
-        ctx.lineTo(x + size/2, y + size);
-        ctx.lineTo(x + size/2, y + size/3);
+        const topCurveHeight = size * 0.3;
+        ctx.moveTo(x, y + size / 4);
+        ctx.bezierCurveTo(
+          x, y,
+          x - size / 2, y,
+          x - size / 2, y + topCurveHeight
+        );
+        ctx.bezierCurveTo(
+          x - size / 2, y + (size + topCurveHeight) / 2,
+          x, y + (size + topCurveHeight) / 1.5,
+          x, y + size
+        );
+        ctx.bezierCurveTo(
+          x, y + (size + topCurveHeight) / 1.5,
+          x + size / 2, y + (size + topCurveHeight) / 2,
+          x + size / 2, y + topCurveHeight
+        );
+        ctx.bezierCurveTo(
+          x + size / 2, y,
+          x, y,
+          x, y + size / 4
+        );
         ctx.closePath();
         ctx.fill();
-      }
-    };
-  }
 
-  class Pipe {
-    constructor(x) {
-      this.x = x;
-      this.width = W * pipeWidthRatio;
-      this.gap = H * pipeGapRatio;
-      const minHeight = 50;
-      this.topHeight = minHeight + Math.random() * (H - groundHeight - this.gap - minHeight);
-      this.passed = false;
-    }
-    update() {
-      this.x -= 3;
-    }
-    draw() {
-      ctx.fillStyle = 'green';
-      ctx.fillRect(this.x, 0, this.width, this.topHeight);
-      ctx.fillRect(this.x, this.topHeight + this.gap, this.width, H - groundHeight - (this.topHeight + this.gap));
-    }
-  }
-
-  function initGame() {
-    bird = createBird();
-    pipes = [];
-    frameCount = 0;
-    score = 0;
-    gameOver = false;
-    scoreEl.textContent = 'Score: 0';
-    scoreEl.style.display = 'block';
-    gameOverMessage.style.display = 'none';
-  }
-
-  function update() {
-    if (gameOver) return;
-
-    frameCount++;
-    bird.update();
-
-    if (frameCount % 90 === 0) {
-      pipes.push(new Pipe(W));
-    }
-    pipes.forEach(pipe => pipe.update());
-
-    // Remove offscreen pipes
-    pipes = pipes.filter(pipe => pipe.x + pipe.width > 0);
-
-    // Check collision and scoring
-    pipes.forEach(pipe => {
-      if (!pipe.passed && pipe.x + pipe.width < bird.x) {
-        score++;
-        scoreEl.textContent = 'Score: ' + score;
-        pipe.passed = true;
-      }
-      // Collision box
-      if (
-        bird.x + bird.size/2 > pipe.x &&
-        bird.x - bird.size/2 < pipe.x + pipe.width &&
-        (bird.y - bird.size/2 < pipe.topHeight || bird.y + bird.size/2 > pipe.topHeight + pipe.gap)
-      ) {
-        gameOver = true;
-      }
-    });
-
-    if (gameOver) {
-      endGame();
-    }
-  }
-
-  function draw() {
-    ctx.clearRect(0, 0, W, H);
-    // Background sky already set by CSS
-    bird.draw();
-    pipes.forEach(pipe => pipe.draw());
-
-    // Ground
-    ctx.fillStyle = '#2c7a0f';
-    ctx.fillRect(0, H - groundHeight, W, groundHeight);
-  }
-
-  function gameLoop() {
-    update();
-    draw();
-    if (!gameOver) {
-      animationId = requestAnimationFrame(gameLoop);
-    }
-  }
-
-  function startGame() {
-    ui.classList.add('hidden');
-    initGame();
-    gameLoop();
-  }
-
-  function endGame() {
-    cancelAnimationFrame(animationId);
-    scoreEl.style.display = 'none';
-    gameOverMessage.style.display = 'block';
-
-    if (score > bestScore) {
-      bestScore = score;
-      localStorage.setItem('bestScore', bestScore);
-      bestScoreEl.textContent = 'Meilleur score : ' + bestScore;
-    }
-  }
-
-  startBtn.addEventListener('click', () => {
-    startGame();
-  });
-
-  restartBtn.addEventListener('click', () => {
-    gameOverMessage.style.display = 'none';
-    startGame();
-  });
-
-  // Jump on click or space
-  window.addEventListener('keydown', e => {
-    if ((e.code === 'Space' || e.code === 'ArrowUp') && !gameOver) {
-      bird.jump();
-    }
-  });
-  window.addEventListener('mousedown', () => {
-    if (!gameOver) bird.jump();
-  });
-
-})();
-</script>
-
-</body>
-</html>
+        // petit effet de lumière
+        ctx.fillStyle = 'rgba(255,150,150,0.5)';
+        ctx.beginPath();
+        ctx.moveTo(x - size/6, y + size/3);
+        ctx.bezierCurveTo(
+          x - size/8, y + size/6,
+          x + size/8, y + size/6,
+          x + size/6, y + size/3
+        );
+        ctx.bezierCurveTo(
+         
