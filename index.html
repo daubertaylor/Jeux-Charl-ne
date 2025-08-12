@@ -2,304 +2,256 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-<title>Flappy Coeur</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Flappy Heart</title>
 <style>
-  * {
-    margin:0; padding:0; box-sizing: border-box;
+  @import url('https://fonts.googleapis.com/css2?family=Comic+Neue&display=swap');
+  body {
+    margin: 0; background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%);
+    font-family: 'Comic Neue', cursive;
+    overflow: hidden;
+    user-select: none;
   }
-  html, body {
-    height:100%;
-    background: linear-gradient(to bottom, #4a90e2 0%, #b1d1fc 100%);
-    overflow:hidden;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    -webkit-tap-highlight-color: transparent;
-  }
-  canvas {
+  #gameCanvas {
     display: block;
-    margin: auto;
-    background: transparent;
-    touch-action: manipulation;
+    margin: 20px auto;
+    background: #87ceeb; /* ciel bleu */
+    border-radius: 20px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.2);
   }
   #score {
-    position: fixed;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: #d42b3f;
-    font-size: 2.5em;
-    font-weight: 700;
-    text-shadow: 1px 1px 4px #000;
-    user-select: none;
-    z-index: 10;
-  }
-  #message {
-    position: fixed;
-    top: 45%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(255, 255, 255, 0.95);
-    color: #d42b3f;
-    padding: 25px 40px;
-    border-radius: 15px;
-    font-size: 1.4em;
     text-align: center;
-    box-shadow: 0 0 15px rgba(212,43,63,0.8);
-    user-select: none;
-    display: none;
-    max-width: 90vw;
-    line-height: 1.4;
-    z-index: 20;
+    font-size: 24px;
+    color: #fff;
+    text-shadow: 1px 1px 3px #a00;
+    margin-top: 10px;
   }
 </style>
 </head>
 <body>
-<canvas id="game"></canvas>
-<div id="score">0</div>
-<div id="message">C’est pas grave mon amour,<br>chaque essai te rapproche un peu plus du ciel 💖</div>
+
+<canvas id="gameCanvas" width="400" height="600"></canvas>
+<div id="score">Score: 0</div>
 
 <script>
 (() => {
-  const canvas = document.getElementById('game');
+  const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
 
-  let width, height;
-  function resize() {
-    width = Math.min(window.innerWidth, 400);
-    height = Math.min(window.innerHeight, 700);
-    canvas.width = width;
-    canvas.height = height;
+  const W = canvas.width;
+  const H = canvas.height;
+
+  // Coeur dessin animé
+  function drawHeart(x, y, size, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    const topCurveHeight = size * 0.3;
+    ctx.moveTo(x, y + topCurveHeight);
+    // Left side
+    ctx.bezierCurveTo(
+      x, y,
+      x - size / 2, y,
+      x - size / 2, y + topCurveHeight
+    );
+    // Bottom left
+    ctx.bezierCurveTo(
+      x - size / 2, y + (size + topCurveHeight) / 2,
+      x, y + (size + topCurveHeight) / 1.2,
+      x, y + size
+    );
+    // Bottom right
+    ctx.bezierCurveTo(
+      x, y + (size + topCurveHeight) / 1.2,
+      x + size / 2, y + (size + topCurveHeight) / 2,
+      x + size / 2, y + topCurveHeight
+    );
+    // Right side
+    ctx.bezierCurveTo(
+      x + size / 2, y,
+      x, y,
+      x, y + topCurveHeight
+    );
+    ctx.closePath();
+    ctx.fill();
+
+    // contour blanc épais pour style dessin animé
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'white';
+    ctx.stroke();
   }
-  resize();
-  window.addEventListener('resize', resize);
 
-  // Game constants
-  const gravity = 0.5;
-  const jumpPower = -9;
-  const obstacleWidth = 50;
-  const gapHeight = 160;
-  const obstacleSpacing = 220;
-
-  // Heart character
-  const heart = {
-    x: width / 4,
-    y: height / 2,
-    vy: 0,
-    radius: 22,
-    pulseScale: 1,
-    pulseDir: 1,
-    pulseSpeed: 0.04,
+  // Variables du jeu
+  let bird = {
+    x: 80,
+    y: H / 2,
+    size: 40,
+    velocity: 0,
+    gravity: 0.5,
+    lift: -10,
   };
 
-  // Obstacles array
-  let obstacles = [];
-  let frame = 0;
+  let pipes = [];
+  let pipeWidth = 60;
+  let pipeGap = 160;
+  let pipeSpeed = 2;
+  let frameCount = 0;
   let score = 0;
   let gameOver = false;
 
-  const messageDiv = document.getElementById('message');
-  const scoreDiv = document.getElementById('score');
-
-  // Draw heart shape function
-  function drawHeart(x, y, size, color) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(size, size);
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.bezierCurveTo(0, -0.5, -0.5, -0.5, -0.5, 0);
-    ctx.bezierCurveTo(-0.5, 0.5, 0, 0.9, 0, 1.3);
-    ctx.bezierCurveTo(0, 0.9, 0.5, 0.5, 0.5, 0);
-    ctx.bezierCurveTo(0.5, -0.5, 0, -0.5, 0, 0);
-    ctx.closePath();
-    ctx.fillStyle = color;
-    ctx.shadowColor = '#b50000';
-    ctx.shadowBlur = 10;
-    ctx.fill();
-    ctx.restore();
+  // Créer un tuyau aléatoire (topY est le bas du tuyau supérieur)
+  function createPipe() {
+    const minPipeHeight = 50;
+    const maxPipeHeight = H - pipeGap - minPipeHeight;
+    const topPipeBottomY = minPipeHeight + Math.random() * (maxPipeHeight - minPipeHeight);
+    pipes.push({
+      x: W,
+      topY: topPipeBottomY,
+      width: pipeWidth,
+    });
   }
 
-  // Draw circle helper for tree foliage
-  function drawCircle(x, y, r, color) {
-    ctx.beginPath();
-    ctx.fillStyle = color;
-    ctx.shadowColor = '#1a4b1a';
-    ctx.shadowBlur = 5;
-    ctx.ellipse(x, y, r, r * 0.8, 0, 0, 2 * Math.PI);
-    ctx.fill();
-    ctx.shadowBlur = 0;
+  // Dessiner les tuyaux
+  function drawPipes() {
+    ctx.fillStyle = '#228B22'; // vert dessin animé
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 4;
+    pipes.forEach(pipe => {
+      // tuyau du haut
+      ctx.fillRect(pipe.x, 0, pipe.width, pipe.topY);
+      ctx.strokeRect(pipe.x, 0, pipe.width, pipe.topY);
+      // tuyau du bas
+      const bottomY = pipe.topY + pipeGap;
+      const bottomHeight = H - bottomY;
+      ctx.fillRect(pipe.x, bottomY, pipe.width, bottomHeight);
+      ctx.strokeRect(pipe.x, bottomY, pipe.width, bottomHeight);
+    });
   }
 
-  // Obstacle class (trees)
-  class Obstacle {
-    constructor(x) {
-      this.x = x;
-      this.topHeight = Math.random() * (height / 2 - gapHeight / 2 - 40) + 40;
-      this.bottomY = this.topHeight + gapHeight;
-      this.passed = false;
-    }
-    draw() {
-      // Tree trunks
-      ctx.fillStyle = '#5a3a1a';
-      ctx.fillRect(this.x, this.topHeight - 35, obstacleWidth, 35);
-      ctx.fillRect(this.x, this.bottomY, obstacleWidth, height - this.bottomY);
+  // Vérifier collision entre coeur et tuyaux
+  function collision() {
+    for (let pipe of pipes) {
+      // BBox coeur approximée par un carré autour du centre
+      let birdBox = {
+        left: bird.x - bird.size / 2,
+        right: bird.x + bird.size / 2,
+        top: bird.y - bird.size / 2,
+        bottom: bird.y + bird.size / 2,
+      };
 
-      // Top foliage (3 circles)
-      drawCircle(this.x + obstacleWidth / 2, this.topHeight - 50, 35, '#2f6f2f');
-      drawCircle(this.x + obstacleWidth / 2 - 25, this.topHeight - 30, 28, '#3b8a3b');
-      drawCircle(this.x + obstacleWidth / 2 + 25, this.topHeight - 30, 28, '#3b8a3b');
-
-      // Bottom foliage (3 circles)
-      drawCircle(this.x + obstacleWidth / 2, this.bottomY + 15, 35, '#2f6f2f');
-      drawCircle(this.x + obstacleWidth / 2 - 25, this.bottomY + 35, 28, '#3b8a3b');
-      drawCircle(this.x + obstacleWidth / 2 + 25, this.bottomY + 35, 28, '#3b8a3b');
-    }
-    update() {
-      this.x -= 3;
-    }
-  }
-
-  // Draw background (houses and clouds)
-  function drawBackground() {
-    // Houses base line
-    const baseY = height - 60;
-    const houseColors = ['#565656', '#454545', '#6a6a6a', '#595959'];
-    for (let i = 0; i < 6; i++) {
-      let houseX = (i * 80 + frame * 1.5) % (width + 80) - 80;
-      ctx.fillStyle = houseColors[i % houseColors.length];
-      ctx.beginPath();
-      ctx.moveTo(houseX, baseY);
-      ctx.lineTo(houseX + 40, baseY - 45);
-      ctx.lineTo(houseX + 80, baseY);
-      ctx.closePath();
-      ctx.fill();
-
-      // Windows
-      ctx.fillStyle = '#222';
-      for (let w = 0; w < 3; w++) {
-        for (let hW = 0; hW < 2; hW++) {
-          ctx.fillRect(houseX + 12 + w * 13, baseY - 40 + hW * 18, 9, 9);
-        }
+      // Tuyau du haut
+      if (
+        birdBox.right > pipe.x &&
+        birdBox.left < pipe.x + pipe.width &&
+        birdBox.top < pipe.topY
+      ) {
+        return true;
       }
-    }
 
-    // Clouds (white, soft)
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    drawCloud((frame * 0.6) % (width + 140) - 140, 90);
-    drawCloud(((frame * 0.6) + 280) % (width + 140) - 140, 130);
-  }
-
-  // Draw cloud shape
-  function drawCloud(x, y) {
-    ctx.beginPath();
-    ctx.ellipse(x, y, 32, 22, 0, 0, 2 * Math.PI);
-    ctx.ellipse(x + 34, y + 12, 32, 28, 0, 0, 2 * Math.PI);
-    ctx.ellipse(x + 68, y, 32, 22, 0, 0, 2 * Math.PI);
-    ctx.fill();
-  }
-
-  // Collision detection function
-  function collision(h, obs) {
-    if (h.x + h.radius > obs.x && h.x - h.radius < obs.x + obstacleWidth) {
-      if (h.y - h.radius < obs.topHeight || h.y + h.radius > obs.bottomY) {
+      // Tuyau du bas
+      if (
+        birdBox.right > pipe.x &&
+        birdBox.left < pipe.x + pipe.width &&
+        birdBox.bottom > pipe.topY + pipeGap
+      ) {
         return true;
       }
     }
-    if (h.y + h.radius > height || h.y - h.radius < 0) {
+
+    // Toucher le sol ou le plafond
+    if (bird.y + bird.size / 2 > H || bird.y - bird.size / 2 < 0) {
       return true;
     }
+
     return false;
   }
 
-  // Reset game function
-  function resetGame() {
-    obstacles = [];
-    frame = 0;
-    score = 0;
-    heart.y = height / 2;
-    heart.vy = 0;
-    gameOver = false;
-    messageDiv.style.display = 'none';
-    scoreDiv.textContent = score;
-    loop();
+  // Boucle de jeu
+  function gameLoop() {
+    if (gameOver) {
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#ff5555';
+      ctx.font = '36px Comic Neue, cursive';
+      ctx.textAlign = 'center';
+      ctx.fillText('Game Over', W / 2, H / 2 - 40);
+      ctx.font = '20px Comic Neue, cursive';
+      ctx.fillText(`Score: ${score}`, W / 2, H / 2);
+      ctx.fillStyle = '#fff0f5';
+      ctx.font = '18px Comic Neue, cursive';
+      ctx.fillText("C’est pas grave mon amour", W / 2, H / 2 + 40);
+      ctx.fillText("Chaque essai te rapproche plus prêt du ciel", W / 2, H / 2 + 65);
+      ctx.fillText('Clique ou tape pour rejouer', W / 2, H / 2 + 95);
+      return;
+    }
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Mise à jour position du coeur
+    bird.velocity += bird.gravity;
+    bird.y += bird.velocity;
+
+    // Génération tuyaux toutes les 100 frames environ
+    if (frameCount % 100 === 0) {
+      createPipe();
+    }
+
+    // Déplacement tuyaux
+    pipes.forEach(pipe => {
+      pipe.x -= pipeSpeed;
+    });
+
+    // Suppression tuyaux sortis de l'écran + gestion score
+    if (pipes.length && pipes[0].x + pipeWidth < 0) {
+      pipes.shift();
+      score++;
+      document.getElementById('score').textContent = `Score: ${score}`;
+    }
+
+    drawPipes();
+    drawHeart(bird.x, bird.y, bird.size, '#ff2d55'); // cœur rouge flashy
+
+    if (collision()) {
+      gameOver = true;
+    }
+
+    frameCount++;
+    requestAnimationFrame(gameLoop);
   }
 
-  // Jump function on input
-  function jump() {
+  // Rejouer
+  function resetGame() {
+    bird.y = H / 2;
+    bird.velocity = 0;
+    pipes = [];
+    score = 0;
+    frameCount = 0;
+    gameOver = false;
+    document.getElementById('score').textContent = `Score: ${score}`;
+    gameLoop();
+  }
+
+  // Contrôle tactile/clic/espace
+  function flap() {
     if (gameOver) {
       resetGame();
     } else {
-      heart.vy = jumpPower;
-      heart.pulseScale = 1.25;
-      heart.pulseDir = -1;
+      bird.velocity = bird.lift;
     }
   }
 
-  // Input listeners
-  window.addEventListener('mousedown', jump);
-  window.addEventListener('touchstart', e => {
-    e.preventDefault();
-    jump();
-  }, {passive: false});
-
-  // Main game loop
-  function loop() {
-    frame++;
-
-    ctx.clearRect(0, 0, width, height);
-    drawBackground();
-
-    // Create new obstacles
-    if (frame % obstacleSpacing === 0) {
-      obstacles.push(new Obstacle(width));
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      flap();
     }
+  });
 
-    // Update and draw obstacles
-    obstacles.forEach(obs => {
-      obs.update();
-      obs.draw();
+  window.addEventListener('mousedown', flap);
+  window.addEventListener('touchstart', flap);
 
-      // Check for passing obstacle for score
-      if (!obs.passed && obs.x + obstacleWidth < heart.x) {
-        score++;
-        scoreDiv.textContent = score;
-        obs.passed = true;
-      }
-
-      // Collision detection
-      if (collision(heart, obs)) {
-        gameOver = true;
-      }
-    });
-
-    // Remove offscreen obstacles
-    obstacles = obstacles.filter(obs => obs.x + obstacleWidth > 0);
-
-    // Update heart physics
-    if (!gameOver) {
-      heart.vy += gravity;
-      heart.y += heart.vy;
-
-      // Heart pulse animation
-      heart.pulseScale += heart.pulseSpeed * heart.pulseDir;
-      if (heart.pulseScale > 1.15) heart.pulseDir = -1;
-      if (heart.pulseScale < 1) heart.pulseDir = 1;
-    }
-
-    // Draw heart
-    drawHeart(heart.x, heart.y, heart.pulseScale, '#d42b3f');
-
-    // If game over show message
-    if (gameOver) {
-      messageDiv.style.display = 'block';
-    }
-
-    requestAnimationFrame(loop);
-  }
-
-  // Start game loop
-  loop();
+  resetGame();
 })();
 </script>
+
 </body>
 </html>
