@@ -16,7 +16,6 @@
     top: 0; left: 0;
     width: 100vw;
     height: 100vh;
-    background: transparent;
   }
   #score {
     position: fixed;
@@ -100,9 +99,9 @@
   const gravity = 0.7;
   const jumpForce = -12;
   const pipeWidth = W * 0.12;
-  const pipeGap = H * 0.28;  // un peu plus serré = plus dur
+  const pipeGap = H * 0.28;
   const groundHeight = H * 0.12;
-  const pipeSpeed = 4;  // un peu plus rapide = plus dur
+  const pipeSpeed = 4;
 
   // Bird object (le cœur)
   function createBird() {
@@ -135,11 +134,9 @@
         const size = this.size;
         const topCurveHeight = size * 0.3;
 
-        // Ombre portée
         ctx.shadowColor = 'rgba(214,48,49,0.6)';
         ctx.shadowBlur = size * 0.15;
 
-        // Dégradé rouge pour cœur
         const grad = ctx.createLinearGradient(x - size/2, y, x + size/2, y + size);
         grad.addColorStop(0, '#e63946');
         grad.addColorStop(0.5, '#d62828');
@@ -185,26 +182,21 @@
       this.x -= pipeSpeed;
     }
     draw() {
-      // Top trunk
       this.drawTrunk(this.x, 0, this.width, this.topHeight);
-      // Bottom trunk
       const bottomY = this.topHeight + this.gap;
       this.drawTrunk(this.x, bottomY, this.width, H - groundHeight - bottomY);
     }
     drawTrunk(x, y, width, height) {
-      // Corps du tronc
       const trunkColor = '#6b4f2b';
       const trunkShadow = '#4b3718';
 
       ctx.fillStyle = trunkColor;
       ctx.fillRect(x, y, width, height);
 
-      // Contours épais
       ctx.strokeStyle = trunkShadow;
       ctx.lineWidth = 3;
       ctx.strokeRect(x, y, width, height);
 
-      // Texture - anneaux de croissance
       ctx.strokeStyle = '#8c6e3f';
       ctx.lineWidth = 1.2;
       const ringCount = Math.floor(height / 15);
@@ -217,7 +209,7 @@
     }
   }
 
-  // Décor : montagnes, maisons, arbres en arrière-plan (plus simples)
+  // Décor montagne simple
   const mountainColors = ['#4c704c', '#527953', '#6a8a6a'];
   const mountainBaseY = () => H - groundHeight;
 
@@ -248,14 +240,12 @@
       const y = this.y;
       const s = this.scale;
 
-      // Corps maison
       ctx.fillStyle = '#ffcd94';
       ctx.strokeStyle = '#a8692a';
       ctx.lineWidth = 3;
       ctx.fillRect(x, y - 60 * s, 80 * s, 60 * s);
       ctx.strokeRect(x, y - 60 * s, 80 * s, 60 * s);
 
-      // Toit
       ctx.fillStyle = '#d64545';
       ctx.beginPath();
       ctx.moveTo(x - 10 * s, y - 60 * s);
@@ -265,7 +255,6 @@
       ctx.fill();
       ctx.stroke();
 
-      // Fenêtres
       ctx.fillStyle = '#f5f3ce';
       ctx.fillRect(x + 10 * s, y - 40 * s, 25 * s, 25 * s);
       ctx.fillRect(x + 45 * s, y - 40 * s, 25 * s, 25 * s);
@@ -277,4 +266,128 @@
     new House(W * 0.1, H - groundHeight, 0.6),
     new House(W * 0.35, H - groundHeight, 0.5),
     new House(W * 0.65, H - groundHeight, 0.7),
-    new House(W * 1.1,
+    new House(W * 1.1, H - groundHeight, 0.6),
+  ];
+
+  // Sol herbeux simple
+  function drawGround() {
+    ctx.fillStyle = '#3ba34d';
+    ctx.fillRect(0, H - groundHeight, W, groundHeight);
+
+    // Traits herbe
+    ctx.strokeStyle = '#2e7d32';
+    ctx.lineWidth = 2;
+    for(let i=0; i<W; i+=20) {
+      ctx.beginPath();
+      ctx.moveTo(i, H - groundHeight);
+      ctx.lineTo(i + 5, H - groundHeight - 15);
+      ctx.stroke();
+    }
+  }
+
+  // INITIALISATION
+  function init() {
+    bird = createBird();
+    pipes = [];
+    frameCount = 0;
+    score = 0;
+    gameOver = false;
+    scoreEl.textContent = 'Score: 0';
+    gameOverMessage.style.display = 'none';
+
+    // Initial pipes spacing sur 3 tubes
+    const startX = W + 100;
+    for(let i=0; i<4; i++) {
+      pipes.push(new Pipe(startX + i * (pipeWidth + 230)));
+    }
+  }
+
+  // INPUT
+  function jump() {
+    if(!gameOver) bird.jump();
+  }
+  window.addEventListener('keydown', e => {
+    if(e.code === 'Space') {
+      e.preventDefault();
+      jump();
+    }
+  });
+  window.addEventListener('mousedown', jump);
+  restartBtn.addEventListener('click', () => {
+    init();
+    loop();
+  });
+
+  // COLLISION SIMPLE RECTANGLE
+  function isColliding(bird, pipe) {
+    const bx = bird.x;
+    const by = bird.y;
+    const bs = bird.size / 2;
+
+    // Top pipe
+    if(bx + bs > pipe.x && bx - bs < pipe.x + pipe.width && by - bs < pipe.topHeight) return true;
+    // Bottom pipe
+    if(bx + bs > pipe.x && bx - bs < pipe.x + pipe.width && by + bs > pipe.topHeight + pipe.gap) return true;
+
+    return false;
+  }
+
+  // GAME LOOP
+  function loop(time=0) {
+    if(gameOver) {
+      gameOverMessage.style.display = 'block';
+      return;
+    }
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Décor
+    drawMountains(time);
+    houses.forEach(h => h.draw());
+    drawGround();
+
+    // Pipes
+    pipes.forEach(pipe => {
+      pipe.update();
+      pipe.draw();
+
+      // Si hors écran à gauche, reset à droite avec nouvelle hauteur
+      if(pipe.x + pipe.width < 0) {
+        pipe.x = W + pipeWidth + 230;
+        pipe.topHeight = 80 + Math.random() * (H - groundHeight - pipe.gap - 80);
+        pipe.passed = false;
+      }
+
+      // Vérifie collision
+      if(isColliding(bird, pipe)) {
+        gameOver = true;
+      }
+
+      // Score
+      if(!pipe.passed && pipe.x + pipe.width < bird.x) {
+        pipe.passed = true;
+        score++;
+        scoreEl.textContent = 'Score: ' + score;
+      }
+    });
+
+    // Bird update + draw
+    bird.update();
+    bird.draw();
+
+    frameCount++;
+    if(!gameOver) {
+      requestAnimationFrame(loop);
+    } else {
+      gameOverMessage.style.display = 'block';
+    }
+  }
+
+  // Démarrage
+  init();
+  loop();
+})();
+</script>
+
+</body>
+</html>
