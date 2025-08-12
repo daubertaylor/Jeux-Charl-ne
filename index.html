@@ -2,62 +2,23 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Flappy Heart Forêt</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<title>Flappy Coeur</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Baloo+2&display=swap');
-  html, body {
-    margin:0; padding:0; height:100%;
-    background: linear-gradient(to top, #317d49 0%, #a0d8ef 90%);
-    font-family: 'Baloo 2', cursive;
-    overflow: hidden;
-    user-select: none;
-  }
-  canvas {
-    display: block;
-    background: transparent;
-    position: fixed;
-    top: 0; left: 0;
-    width: 100vw;
-    height: 100vh;
+  * { margin:0; padding:0; box-sizing: border-box; }
+  html, body { height:100%; background: linear-gradient(to bottom, #35456a 0%, #87a8d0 100%); overflow:hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+  canvas { display: block; margin: auto; background: transparent; }
+  #message {
+    position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%);
+    background: rgba(255,255,255,0.9); color:#d42b3f; padding: 20px 30px; border-radius: 12px;
+    font-size: 1.3em; text-align:center; width: 80%;
+    display: none;
+    box-shadow: 0 0 15px rgba(212,43,63,0.6);
   }
   #score {
-    position: fixed;
-    top: 20px; left: 50%;
-    transform: translateX(-50%);
-    font-size: 2.5rem;
-    color: #ff4c62;
-    text-shadow: 0 0 10px #ff7392;
-    z-index: 10;
-  }
-  #message {
-    position: fixed;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(30, 40, 25, 0.9);
-    color: #f0f7e8;
-    padding: 2em 2.5em;
-    border-radius: 20px;
-    text-align: center;
-    font-size: 1.3rem;
-    display: none;
-    z-index: 20;
-    box-shadow: 0 0 20px #84c885;
-  }
-  #message button {
-    margin-top: 1.2em;
-    background: #4caf50;
-    border: none;
-    border-radius: 12px;
-    padding: 0.8em 2.2em;
-    font-weight: bold;
-    color: white;
-    font-size: 1.2rem;
-    cursor: pointer;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.25);
-  }
-  #message button:hover {
-    background: #388e3c;
+    position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+    color: white; font-size: 2em; text-shadow: 1px 1px 3px #000;
+    user-select: none;
   }
 </style>
 </head>
@@ -65,157 +26,259 @@
 
 <canvas id="game"></canvas>
 <div id="score">0</div>
-<div id="message">
-  <p>Ce n’est pas grave mon amour 💔<br>Tu as tout donné, je suis fier de toi.</p>
-  <button id="restartBtn">Recommencer</button>
-</div>
+<div id="message">C’est pas grave mon amour,<br>chaque essai te rapproche du ciel 💖</div>
 
 <script>
 (() => {
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
-  const scoreDiv = document.getElementById('score');
-  const messageDiv = document.getElementById('message');
-  const restartBtn = document.getElementById('restartBtn');
+  let width, height;
 
-  let W, H;
-
+  // Resize canvas to window size (max width 400 for phone playability)
   function resize() {
-    W = window.innerWidth;
-    H = window.innerHeight;
-    canvas.width = W * devicePixelRatio;
-    canvas.height = H * devicePixelRatio;
-    canvas.style.width = W + 'px';
-    canvas.style.height = H + 'px';
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.scale(devicePixelRatio, devicePixelRatio);
+    width = Math.min(window.innerWidth, 400);
+    height = Math.min(window.innerHeight, 700);
+    canvas.width = width;
+    canvas.height = height;
   }
   resize();
   window.addEventListener('resize', resize);
 
-  // Game parameters
-  const gravity = 0.6;
-  const jumpPower = -10;
-  const obstacleWidth = 70;
+  // Game variables
+  const gravity = 0.5;
+  const jumpPower = -9;
+  const obstacleWidth = 40;
   const gapHeight = 150;
-  const speed = 3;
-  const heartRadius = 25;
+  const obstacleSpacing = 220;
+  let obstacles = [];
+  let frame = 0;
+  let score = 0;
+  let gameOver = false;
 
-  // Heart player
+  // Heart character
   const heart = {
-    x: W / 4,
-    y: H / 2,
+    x: width/4,
+    y: height/2,
     vy: 0,
-    pulse: 0,
+    radius: 20,
+    pulseScale: 1,
+    pulseDir: 1,
+    pulseSpeed: 0.05
   };
 
-  let obstacles = [];
-  let frameCount = 0;
-  let score = 0;
-  let running = true;
+  // Draw heart shape
+  function drawHeart(x, y, size, color) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(size, size);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(0, -0.5, -0.5, -0.5, -0.5, 0);
+    ctx.bezierCurveTo(-0.5, 0.5, 0, 0.9, 0, 1.3);
+    ctx.bezierCurveTo(0, 0.9, 0.5, 0.5, 0.5, 0);
+    ctx.bezierCurveTo(0.5, -0.5, 0, -0.5, 0, 0);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.shadowColor = '#b50000';
+    ctx.shadowBlur = 10;
+    ctx.fill();
+    ctx.restore();
+  }
 
-  // Obstacles class (trees)
+  // Obstacle class (tree style)
   class Obstacle {
     constructor(x) {
       this.x = x;
-      this.topHeight = 80 + Math.random() * (H - gapHeight - 160);
-      this.bottomHeight = H - this.topHeight - gapHeight;
-    }
-    update() {
-      this.x -= speed;
+      this.topHeight = Math.random() * (height/2 - gapHeight/2) + 40;
+      this.bottomY = this.topHeight + gapHeight;
+      this.passed = false;
     }
     draw() {
-      drawTree(this.x, 0, this.topHeight);
-      ctx.save();
-      ctx.translate(this.x, H);
-      ctx.scale(1, -1);
-      drawTree(0, 0, this.bottomHeight);
-      ctx.restore();
+      // Tronc
+      ctx.fillStyle = '#4b3621';
+      ctx.fillRect(this.x, this.topHeight - 30, obstacleWidth, 30);
+      ctx.fillRect(this.x, this.bottomY, obstacleWidth, height - this.bottomY);
+
+      // Feuillage (top)
+      drawCircle(this.x + obstacleWidth/2, this.topHeight - 40, 30, '#226622');
+      drawCircle(this.x + obstacleWidth/2 - 20, this.topHeight - 25, 25, '#2a8a2a');
+      drawCircle(this.x + obstacleWidth/2 + 20, this.topHeight - 25, 25, '#2a8a2a');
+
+      // Feuillage (bottom)
+      drawCircle(this.x + obstacleWidth/2, this.bottomY, 30, '#226622');
+      drawCircle(this.x + obstacleWidth/2 - 20, this.bottomY + 15, 25, '#2a8a2a');
+      drawCircle(this.x + obstacleWidth/2 + 20, this.bottomY + 15, 25, '#2a8a2a');
     }
-    collides(cx, cy, cr) {
-      // Collision with trunks approximated as rectangles
-      if (cx + cr > this.x - 10 && cx - cr < this.x + 10) {
-        if (cy - cr < this.topHeight) return true;
-        if (cy + cr > H - this.bottomHeight) return true;
+    update() {
+      this.x -= 3;
+    }
+  }
+
+  function drawCircle(x, y, r, color) {
+    ctx.beginPath();
+    ctx.fillStyle = color;
+    ctx.shadowColor = '#154915';
+    ctx.shadowBlur = 4;
+    ctx.ellipse(x, y, r, r*0.8, 0, 0, 2*Math.PI);
+    ctx.fill();
+  }
+
+  // Background elements
+  function drawBackground() {
+    // Ciel dégradé déjà en CSS background, ici on dessine maisons & nuages
+
+    // Maisons silhouettes
+    const baseY = height - 60;
+    const houseColors = ['#464646', '#3d3d3d', '#575757', '#4a4a4a'];
+    for(let i=0; i<5; i++) {
+      let houseX = (i*80 + frame*1.5) % (width + 80) - 80;
+      ctx.fillStyle = houseColors[i%houseColors.length];
+      ctx.beginPath();
+      ctx.moveTo(houseX, baseY);
+      ctx.lineTo(houseX + 40, baseY - 40);
+      ctx.lineTo(houseX + 80, baseY);
+      ctx.closePath();
+      ctx.fill();
+
+      // fenêtres
+      ctx.fillStyle = '#222';
+      for(let w=0; w<3; w++) {
+        for(let h=0; h<2; h++) {
+          ctx.fillRect(houseX+10 + w*12, baseY - 35 + h*15, 8, 8);
+        }
       }
-      return false;
+    }
+
+    // Nuages
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    drawCloud((frame*0.6) % (width+120) - 120, 80);
+    drawCloud(((frame*0.6)+250) % (width+120) - 120, 120);
+  }
+
+  function drawCloud(x, y) {
+    ctx.beginPath();
+    ctx.ellipse(x, y, 30, 20, 0, 0, 2*Math.PI);
+    ctx.ellipse(x + 30, y + 10, 30, 25, 0, 0, 2*Math.PI);
+    ctx.ellipse(x + 60, y, 30, 20, 0, 0, 2*Math.PI);
+    ctx.fill();
+  }
+
+  // Collision detection
+  function collision(h, obs) {
+    // Check collision with top obstacle
+    if (h.x + h.radius > obs.x && h.x - h.radius < obs.x + obstacleWidth) {
+      if (h.y - h.radius < obs.topHeight || h.y + h.radius > obs.bottomY) {
+        return true;
+      }
+    }
+    // Check ground or ceiling
+    if (h.y + h.radius > height || h.y - h.radius < 0) {
+      return true;
+    }
+    return false;
+  }
+
+  // Game over message
+  const messageDiv = document.getElementById('message');
+  const scoreDiv = document.getElementById('score');
+
+  // Reset game
+  function resetGame() {
+    obstacles = [];
+    frame = 0;
+    score = 0;
+    heart.y = height/2;
+    heart.vy = 0;
+    gameOver = false;
+    messageDiv.style.display = 'none';
+    scoreDiv.textContent = score;
+  }
+
+  // Tap to jump
+  function jump() {
+    if (gameOver) {
+      resetGame();
+    } else {
+      heart.vy = jumpPower;
+      heart.pulseScale = 1.3;
+      heart.pulseDir = -1;
     }
   }
 
-  function addObstacle() {
-    const lastX = obstacles.length ? obstacles[obstacles.length - 1].x : W + 150;
-    obstacles.push(new Obstacle(lastX + 250));
+  // Input listeners
+  window.addEventListener('mousedown', jump);
+  window.addEventListener('touchstart', e => {
+    e.preventDefault();
+    jump();
+  }, {passive:false});
+
+  // Main game loop
+  function loop() {
+    ctx.clearRect(0, 0, width, height);
+
+    drawBackground();
+
+    // Add new obstacle
+    if (frame % obstacleSpacing === 0) {
+      obstacles.push(new Obstacle(width));
+    }
+
+    // Update & draw obstacles
+    for(let i=0; i<obstacles.length; i++) {
+      const o = obstacles[i];
+      o.update();
+      o.draw();
+
+      // Remove obstacles off screen
+      if(o.x + obstacleWidth < 0) {
+        obstacles.splice(i,1);
+        i--;
+        continue;
+      }
+
+      // Score
+      if(!o.passed && o.x + obstacleWidth < heart.x - heart.radius) {
+        score++;
+        o.passed = true;
+        scoreDiv.textContent = score;
+      }
+
+      // Collision?
+      if(collision(heart, o)) {
+        gameOver = true;
+      }
+    }
+
+    // Heart physics
+    heart.vy += gravity;
+    heart.y += heart.vy;
+
+    // Heart pulse animation
+    if (heart.pulseDir === 1) {
+      heart.pulseScale += heart.pulseSpeed;
+      if (heart.pulseScale > 1.1) heart.pulseDir = -1;
+    } else {
+      heart.pulseScale -= heart.pulseSpeed;
+      if (heart.pulseScale < 1) heart.pulseDir = 1;
+    }
+
+    // Draw heart
+    drawHeart(heart.x, heart.y, heart.pulseScale, '#d42b3f');
+
+    // If game over, show message
+    if (gameOver) {
+      messageDiv.style.display = 'block';
+    }
+
+    frame++;
+    if (!gameOver) requestAnimationFrame(loop);
   }
 
-  // Draw heart shape, pulsating
-  function drawHeart(x, y, radius) {
-    ctx.save();
-    ctx.translate(x, y);
-    const scalePulse = 1 + 0.05 * Math.sin(heart.pulse);
-    ctx.scale(scalePulse, scalePulse);
+  resetGame();
+  loop();
 
-    ctx.beginPath();
-    const topCurveHeight = radius * 0.3;
-    ctx.moveTo(0, topCurveHeight);
-    ctx.bezierCurveTo(0, 0, -radius / 2, 0, -radius / 2, topCurveHeight);
-    ctx.bezierCurveTo(-radius / 2, radius / 2, 0, radius * 0.75, 0, radius);
-    ctx.bezierCurveTo(0, radius * 0.75, radius / 2, radius / 2, radius / 2, topCurveHeight);
-    ctx.bezierCurveTo(radius / 2, 0, 0, 0, 0, topCurveHeight);
-    ctx.closePath();
+})();
+</script>
 
-    const grad = ctx.createRadialGradient(0, radius / 2, radius * 0.1, 0, radius / 2, radius);
-    grad.addColorStop(0, '#ff4c62');
-    grad.addColorStop(1, '#a80020');
-    ctx.fillStyle = grad;
-
-    ctx.shadowColor = 'rgba(255, 76, 98, 0.9)';
-    ctx.shadowBlur = 15;
-
-    ctx.fill();
-    ctx.restore();
-  }
-
-  // Draw stylized tree (trunk + foliage)
-  function drawTree(x, y, height) {
-    ctx.save();
-    ctx.translate(x, y);
-
-    // Trunk
-    ctx.fillStyle = '#4a2e0f';
-    ctx.shadowColor = 'rgba(0,0,0,0.15)';
-    ctx.shadowBlur = 5;
-    ctx.fillRect(-10, 0, 20, height);
-
-    // Foliage: 3 circles
-    ctx.fillStyle = '#3a7d3c';
-    ctx.shadowColor = 'rgba(20,60,15,0.5)';
-    ctx.shadowBlur = 12;
-    const r = 30;
-    ctx.beginPath();
-    ctx.ellipse(0, -r * 0.7, r, r * 0.8, 0, 0, Math.PI * 2);
-    ctx.ellipse(-r, -r * 1.3, r, r, 0, 0, Math.PI * 2);
-    ctx.ellipse(r, -r * 1.3, r, r, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
-  }
-
-  // Clouds data
-  const clouds = [];
-  for (let i = 0; i < 7; i++) {
-    clouds.push({
-      x: Math.random() * W,
-      y: Math.random() * H * 0.5,
-      size: 40 + Math.random() * 60,
-      speed: 0.3 + Math.random() * 0.5,
-    });
-  }
-  function drawCloud(x, y, size) {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.shadowColor = 'rgba(200,200,210,0.8)';
-    ctx.shadowBlur = 8;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, size * 0.6, size * 0.4, 0, 0, Math.PI * 2);
-    ctx.ellipse(size * 0.5, -size * 0.1, size * 0.55, size * 0.45, 0, 0, Math.PI * 2
+</body>
+</html>
