@@ -3,23 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Flappy Heart - Jeu</title>
+<title>Flappy Heart</title>
 <style>
   html, body {
     margin: 0; padding: 0; height: 100%;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: Arial, sans-serif;
     background: linear-gradient(to top, #87ceeb 0%, #d0f0ff 100%);
     overflow: hidden;
     user-select: none;
-  }
-  canvas {
-    display: block;
-    background: transparent;
-    position: fixed;
-    top: 0; left: 0;
-    width: 100vw;
-    height: 100vh;
-    z-index: 1;
   }
   #ui {
     position: fixed;
@@ -101,6 +92,15 @@
   }
   #restartBtn:hover {
     background: #b82727;
+  }
+  canvas {
+    display: block;
+    background: transparent;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1;
   }
 </style>
 </head>
@@ -297,7 +297,6 @@
     }
   }
 
-  // Event listeners
   startBtn.addEventListener('click', () => {
     startGame();
   });
@@ -307,7 +306,7 @@
     startGame();
   });
 
-  // Make bird jump on click or space
+  // Jump on click or space
   window.addEventListener('keydown', e => {
     if ((e.code === 'Space' || e.code === 'ArrowUp') && !gameOver) {
       bird.jump();
