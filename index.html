@@ -3,19 +3,19 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Flappy Heart - Nature amélioré</title>
+<title>Flappy Heart - Troncs only + Restart</title>
 <style>
   html, body {
-    margin: 0; padding: 0; overflow: hidden;
+    margin:0; padding:0; overflow:hidden;
     background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
     height: 100%;
     font-family: 'Comic Sans MS', cursive, sans-serif;
   }
   canvas {
-    display: block;
-    background: #87ceeb;
+    display:block;
+    background:#87ceeb;
     position: fixed;
-    top: 0; left: 0;
+    top:0; left:0;
     width: 100vw;
     height: 100vh;
   }
@@ -78,25 +78,21 @@
   resize();
   window.addEventListener('resize', resize);
 
-  // Variables jeu
   const gravity = 0.6;
   const lift = -12;
   const pipeSpeed = 3;
   const pipeWidthRatio = 0.12;
   const pipeGapRatio = 0.35;
 
-  let bird = { x: 0, y: 0, size: 0, velocity: 0 };
-  let pipes = [];
-  let frameCount = 0;
-  let score = 0;
-  let gameOver = false;
+  let bird, pipes, frameCount, score, gameOver;
 
-  // Initialisation
   function resetGame() {
-    bird.x = W * 0.2;
-    bird.y = H / 2;
-    bird.size = Math.min(W, H) * 0.08;
-    bird.velocity = 0;
+    bird = {
+      x: W * 0.2,
+      y: H / 2,
+      size: Math.min(W,H) * 0.08,
+      velocity: 0,
+    };
     pipes = [];
     frameCount = 0;
     score = 0;
@@ -105,7 +101,7 @@
     restartBtn.style.display = "none";
   }
 
-  // Dessine cœur cartoon
+  // Dessine un coeur cartoon
   function drawHeart(x, y, size, color) {
     ctx.fillStyle = color;
     ctx.beginPath();
@@ -131,7 +127,7 @@
     ctx.stroke();
   }
 
-  // Dessine tronc arbre simple (sans feuillage)
+  // Dessine juste le tronc (rectangle avec contour)
   function drawTrunk(x, y, width, height) {
     ctx.fillStyle = '#5c3a1a';
     ctx.strokeStyle = 'white';
@@ -183,7 +179,6 @@
     ctx.fillStyle = grad;
     ctx.fillRect(0, H - grassHeight, W, grassHeight);
 
-    // Brins d'herbe aléatoires
     ctx.strokeStyle = '#2a5d2a';
     ctx.lineWidth = 2;
     for (let i = 0; i < W; i += 15) {
@@ -198,7 +193,7 @@
     }
   }
 
-  // Crée un pipe (arbre-tronc)
+  // Crée un pipe (arbre-tronc uniquement)
   function createPipe() {
     const pipeWidth = W * pipeWidthRatio;
     const pipeGap = H * pipeGapRatio;
@@ -214,20 +209,20 @@
     });
   }
 
-  // Collision simple entre cœur et arbres + limites
+  // Collision
   function checkCollision() {
     const b = bird;
     const halfSize = b.size / 2;
 
     for (let pipe of pipes) {
-      // Collision avec pipe du haut (tronc inversé)
+      // Collision avec pipe du haut (tronc)
       if (
         b.x + halfSize > pipe.x &&
         b.x - halfSize < pipe.x + pipe.width &&
         b.y - halfSize < pipe.topHeight
       ) return true;
 
-      // Collision avec pipe du bas (tronc normal)
+      // Collision avec pipe du bas (tronc)
       if (
         b.x + halfSize > pipe.x &&
         b.x - halfSize < pipe.x + pipe.width &&
@@ -240,7 +235,92 @@
     return false;
   }
 
-  // Dessine tous les éléments du jeu
+  // Dessine tous les éléments
   function draw() {
-    ctx.clearRect(0, 0, W, H
-                
+    ctx.clearRect(0, 0, W, H);
+
+    // Ciel avec nuages
+    for (const cloud of clouds) {
+      cloud.draw();
+      cloud.update();
+    }
+
+    // Sol + herbe
+    drawGround();
+
+    // Pipes (troncs)
+    for (const pipe of pipes) {
+      // Tronc haut (inversé)
+      drawTrunk(pipe.x, 0, pipe.width, pipe.topHeight);
+      // Tronc bas
+      drawTrunk(pipe.x, pipe.topHeight + pipe.gap, pipe.width, H - (pipe.topHeight + pipe.gap) - H * 0.12);
+    }
+
+    // Oiseau (coeur)
+    drawHeart(bird.x, bird.y, bird.size, "#e63946");
+  }
+
+  // Met à jour la physique
+  function update() {
+    bird.velocity += gravity;
+    bird.y += bird.velocity;
+
+    if (frameCount % 90 === 0) createPipe();
+
+    for (let pipe of pipes) {
+      pipe.x -= pipeSpeed;
+    }
+    // Retire pipes hors écran et augmente score
+    if (pipes.length && pipes[0].x + pipes[0].width < 0) {
+      pipes.shift();
+      score++;
+      scoreEl.textContent = "Score: " + score;
+    }
+  }
+
+  // Boucle principale
+  function loop() {
+    if (!gameOver) {
+      update();
+      draw();
+      if (checkCollision()) {
+        gameOver = true;
+        restartBtn.style.display = "block";
+      }
+      frameCount++;
+      requestAnimationFrame(loop);
+    }
+  }
+
+  // Controler le saut
+  function flap() {
+    if (!gameOver) bird.velocity = lift;
+  }
+
+  // Événements utilisateur
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space' || e.code === 'ArrowUp') {
+      flap();
+    }
+  });
+  window.addEventListener('mousedown', e => {
+    flap();
+  });
+  window.addEventListener('touchstart', e => {
+    flap();
+  });
+
+  restartBtn.addEventListener('click', () => {
+    resetGame();
+    loop();
+  });
+
+  // Démarrage initial
+  resetGame();
+  loop();
+
+})();
+</script>
+
+</body>
+</html>
