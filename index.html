@@ -1,125 +1,269 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Flappy Heart - Pour Charlène ❤️</title>
-    <style>
-        body { margin: 0; overflow: hidden; background-color: #87CEEB; touch-action: none; } /* Ciel bleu clair, désactiver zoom/pinch */
-        canvas { display: block; width: 100%; height: 100vh; }
-    </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Flappy Heart - Ville Stylée</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: linear-gradient(to top, #1a1a40 0%, #3a3a70 70%, #aabbff 100%);
+    font-family: Arial, sans-serif;
+    user-select: none;
+  }
+  canvas {
+    display: block;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: transparent;
+    z-index: 0;
+  }
+  #score {
+    position: fixed;
+    top: 20px; left: 50%;
+    transform: translateX(-50%);
+    color: #ff5959;
+    font-weight: bold;
+    font-size: 28px;
+    text-shadow: 0 0 6px #ff3b3b;
+    z-index: 10;
+  }
+</style>
 </head>
 <body>
-    <canvas id="gameCanvas"></canvas>
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
 
-        // Adapter la taille du canvas à l'écran (pour mobile)
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+<div id="score">Score : 0</div>
+<canvas id="gameCanvas"></canvas>
+
+<script>
+(() => {
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  let W, H;
+
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W;
+    canvas.height = H;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // VARIABLES JEU
+  const gravity = 0.6;
+  const jumpPower = -10;
+  const pipeWidth = W * 0.12;
+  const pipeGap = H * 0.28;
+  const groundHeight = H * 0.12;
+
+  let bird = {
+    x: W * 0.25,
+    y: H / 2,
+    size: 40,
+    velocity: 0,
+    pulseDir: 1,
+    pulseAmount: 0,
+    update() {
+      this.velocity += gravity;
+      this.y += this.velocity;
+
+      if(this.y + this.size/2 > H - groundHeight) {
+        this.y = H - groundHeight - this.size/2;
+        this.velocity = 0;
+        gameOver = true;
+      }
+      if(this.y - this.size/2 < 0) {
+        this.y = this.size/2;
+        this.velocity = 0;
+        gameOver = true;
+      }
+
+      this.pulseAmount += 0.02 * this.pulseDir;
+      if(this.pulseAmount > 0.05 || this.pulseAmount < -0.05) this.pulseDir *= -1;
+    },
+    draw() {
+      const size = this.size * (1 + this.pulseAmount);
+      const x = this.x;
+      const y = this.y;
+
+      ctx.shadowColor = 'rgba(255,80,80,0.8)';
+      ctx.shadowBlur = size * 0.3;
+
+      const grad = ctx.createLinearGradient(x - size/2, y, x + size/2, y + size);
+      grad.addColorStop(0, '#ff4b5c');
+      grad.addColorStop(0.5, '#d63031');
+      grad.addColorStop(1, '#8b1a1a');
+      ctx.fillStyle = grad;
+
+      ctx.beginPath();
+      ctx.moveTo(x, y + size * 0.3);
+      ctx.bezierCurveTo(x, y,
+        x - size / 2, y,
+        x - size / 2, y + size * 0.3);
+      ctx.bezierCurveTo(x - size / 2, y + (size + size * 0.3) / 2,
+        x, y + (size + size * 0.3) / 1.2,
+        x, y + size);
+      ctx.bezierCurveTo(x, y + (size + size * 0.3) / 1.2,
+        x + size / 2, y + (size + size * 0.3) / 2,
+        x + size / 2, y + size * 0.3);
+      ctx.bezierCurveTo(x + size / 2, y,
+        x, y,
+        x, y + size * 0.3);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.shadowBlur = 0;
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.stroke();
+    },
+    jump() {
+      this.velocity = jumpPower;
+    }
+  };
+
+  class Pipe {
+    constructor(x) {
+      this.x = x;
+      this.width = pipeWidth;
+      this.gap = pipeGap;
+      const minHeight = 70;
+      this.topHeight = minHeight + Math.random() * (H - groundHeight - this.gap - minHeight);
+      this.passed = false;
+    }
+    update() {
+      this.x -= 4;
+      if(this.x + this.width < 0) {
+        this.x = W;
+        this.topHeight = 70 + Math.random() * (H - groundHeight - this.gap - 70);
+        this.passed = false;
+      }
+    }
+    draw() {
+      ctx.fillStyle = '#6d4b1c';
+      ctx.fillRect(this.x, 0, this.width, this.topHeight);
+      ctx.fillRect(this.x, this.topHeight + this.gap, this.width, H - groundHeight - (this.topHeight + this.gap));
+
+      // Simple wood lines on pipes
+      ctx.strokeStyle = '#4c3310';
+      ctx.lineWidth = 1;
+      for(let i = 0; i < this.topHeight; i += 10) {
+        ctx.beginPath();
+        ctx.moveTo(this.x, i);
+        ctx.lineTo(this.x + this.width, i + 5);
+        ctx.stroke();
+      }
+      for(let i = this.topHeight + this.gap; i < H - groundHeight; i += 10) {
+        ctx.beginPath();
+        ctx.moveTo(this.x, i);
+        ctx.lineTo(this.x + this.width, i + 5);
+        ctx.stroke();
+      }
+    }
+  }
+
+  let pipes = [];
+  let frameCount = 0;
+  let score = 0;
+  let gameOver = false;
+
+  function resetGame() {
+    bird.y = H / 2;
+    bird.velocity = 0;
+    pipes = [];
+    for(let i = 0; i < 3; i++) {
+      pipes.push(new Pipe(W + i * (pipeWidth * 3)));
+    }
+    score = 0;
+    gameOver = false;
+  }
+  resetGame();
+
+  function drawBackground() {
+    // Simple city skyline
+    const buildingCount = 15;
+    const baseHeight = groundHeight * 0.8;
+    for(let i = 0; i < buildingCount; i++) {
+      const bw = W / buildingCount;
+      const bh = baseHeight + Math.sin((frameCount * 0.01 + i) * 3) * 20 + 80;
+      ctx.fillStyle = '#24305e';
+      ctx.fillRect(i * bw, H - groundHeight - bh, bw - 4, bh);
+      // windows
+      ctx.fillStyle = '#ffde59';
+      for(let y = H - groundHeight - bh + 10; y < H - groundHeight - 10; y += 20) {
+        for(let x = i * bw + 10; x < (i+1) * bw - 10; x += 15) {
+          if(Math.random() > 0.9) continue;
+          ctx.fillRect(x, y, 7, 10);
         }
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
+      }
+    }
+    // Ground
+    ctx.fillStyle = '#382f2f';
+    ctx.fillRect(0, H - groundHeight, W, groundHeight);
+  }
 
-        // Variables du jeu (adaptées pour mobile)
-        let gravity = 0.6;
-        let jump = -12;
-        let playerY = canvas.height / 2;
-        let playerVelocity = 0;
-        let obstacles = [];
-        let score = 0;
-        let gameOver = false;
-        let gameStarted = false;
-        let frame = 0;
-        let obstacleFrequency = 120;
-        let heartSize = 25;
+  function update() {
+    if(gameOver) return;
+    bird.update();
 
-        // Dessiner le cœur en style cartoon détaillé (yeux, bouche, animation bouncy, ombre)
-        function drawHeart(x, y, size) {
-            // Ombre pour profondeur
-            ctx.beginPath();
-            ctx.ellipse(x + 5, y + size * 2 + 5, size * 1.2, size / 4, 0, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(0,0,0,0.3)';
-            ctx.fill();
-
-            // Corps du cœur
-            ctx.beginPath();
-            ctx.moveTo(x, y - size / 2);
-            ctx.bezierCurveTo(x + size / 2, y - size, x + size, y - size / 2, x + size, y);
-            ctx.bezierCurveTo(x + size, y + size / 2, x + size / 2, y + size / 2, x + size / 2, y + size);
-            ctx.bezierCurveTo(x + size / 2, y + size / 2, x, y + size / 2, x, y + size);
-            ctx.bezierCurveTo(x - size / 2, y + size / 2, x - size / 2, y + size / 2, x - size / 2, y + size);
-            ctx.bezierCurveTo(x - size, y + size / 2, x - size, y, x - size, y);
-            ctx.bezierCurveTo(x - size, y - size / 2, x - size / 2, y - size, x, y - size / 2);
-            ctx.closePath();
-            ctx.fillStyle = '#FF69B4'; // Rose vif
-            ctx.fill();
-            ctx.lineWidth = 4;
-            ctx.strokeStyle = '#000000'; // Contours épais
-            ctx.stroke();
-
-            // Yeux mignons avec reflets
-            ctx.fillStyle = '#FFFFFF';
-            ctx.beginPath();
-            ctx.arc(x - size / 4, y, size / 6, 0, Math.PI * 2);
-            ctx.arc(x + size / 4, y, size / 6, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#000000';
-            ctx.beginPath();
-            ctx.arc(x - size / 4 + 2, y + 2, size / 12, 0, Math.PI * 2); // Pupilles décalées pour expression
-            ctx.arc(x + size / 4 + 2, y + 2, size / 12, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#FFFFFF';
-            ctx.beginPath();
-            ctx.arc(x - size / 4 - 2, y - 2, size / 24, 0, Math.PI * 2); // Reflets
-            ctx.arc(x + size / 4 - 2, y - 2, size / 24, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Bouche souriante
-            ctx.beginPath();
-            ctx.arc(x, y + size / 3, size / 4, 0, Math.PI);
-            ctx.lineWidth = 3;
-            ctx.stroke();
-
-            // Animation bouncy
-            heartSize = 25 + Math.sin(frame / 5) * 3;
+    pipes.forEach(pipe => {
+      pipe.update();
+      if(!pipe.passed && pipe.x + pipe.width < bird.x - bird.size/2) {
+        pipe.passed = true;
+        score++;
+        scoreEl.textContent = 'Score : ' + score;
+      }
+      // collision detection
+      if(bird.x + bird.size/2 > pipe.x && bird.x - bird.size/2 < pipe.x + pipe.width) {
+        if(bird.y - bird.size/2 < pipe.topHeight || bird.y + bird.size/2 > pipe.topHeight + pipe.gap) {
+          gameOver = true;
         }
+      }
+    });
+  }
 
-        // Dessiner un tronc d'arbre en style cartoon détaillé (juste le tronc, avec texture, contours, ombre)
-        function drawTree(x, y, height, width) {
-            // Ombre pour profondeur
-            ctx.beginPath();
-            ctx.rect(x - width / 2 + 5, y + 5, width, height);
-            ctx.fillStyle = 'rgba(0,0,0,0.3)';
-            ctx.fill();
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    drawBackground();
+    pipes.forEach(pipe => pipe.draw());
+    bird.draw();
 
-            // Tronc avec texture (lignes pour écorce)
-            ctx.fillStyle = '#8B4513'; // Marron principal
-            ctx.fillRect(x - width / 2, y, width, height);
-            ctx.lineWidth = 4;
-            ctx.strokeStyle = '#000000'; // Contours épais
-            ctx.strokeRect(x - width / 2, y, width, height);
+    if(gameOver) {
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#ff5959';
+      ctx.font = 'bold 48px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Game Over', W/2, H/2 - 40);
+      ctx.font = 'bold 28px Arial';
+      ctx.fillText(`Score final : ${score}`, W/2, H/2 + 10);
+      ctx.font = '20px Arial';
+      ctx.fillText('Appuie sur Espace pour rejouer', W/2, H/2 + 50);
+    }
+  }
 
-            // Texture écorce : lignes verticales et horizontales
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = '#A0522D'; // Marron plus clair
-            for (let i = 0; i < height / 20; i++) {
-                ctx.beginPath();
-                ctx.moveTo(x - width / 2 + 5, y + i * 20);
-                ctx.lineTo(x + width / 2 - 5, y + i * 20 + 10);
-                ctx.stroke();
-            }
-            ctx.strokeStyle = '#5C3317'; // Marron foncé
-            for (let i = 0; i < width / 10; i++) {
-                ctx.beginPath();
-                ctx.moveTo(x - width / 2 + i * 10, y + 5);
-                ctx.lineTo(x - width / 2 + i * 10 + 5, y + height - 5);
-                ctx.stroke();
-            }
-        }
+  function loop() {
+    frameCount++;
+    update();
+    draw();
+    requestAnimationFrame(loop);
+  }
+  loop();
 
-        // Dessiner le fond en style cartoon détaillé (petite ville plus élaborée, nuages, soleil, oiseaux, arbres lointains)
-        function drawBackground() {
-            // Ciel dé
+  window.addEventListener('keydown', e => {
+    if(e.code === 'Space') {
+      if(gameOver) {
+        resetGame();
+        scoreEl.textContent = 'Score : 0';
+      }
+      bird.jump();
+    }
+  });
+})();
+</script>
+
+</body>
+</html>
