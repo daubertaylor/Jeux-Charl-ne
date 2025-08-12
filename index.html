@@ -3,133 +3,39 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Flappy Heart - Avec Meilleur Score</title>
+<title>Flappy Heart Simple</title>
 <style>
   * { margin:0; padding:0; box-sizing: border-box; }
   html, body {
-    width: 100%; height: 100%;
-    overflow: hidden;
+    width: 100%; height: 100%; overflow: hidden;
+    background: linear-gradient(to top, #87ceeb, #d0f0ff);
     font-family: Arial, sans-serif;
-    background: linear-gradient(to top, #87ceeb 0%, #d0f0ff 100%);
-    user-select: none;
-  }
-  #ui {
-    position: fixed; top:0; left:0; width: 100vw; height: 100vh;
-    background: rgba(255 255 255 / 0.95);
-    display: flex; flex-direction: column; justify-content: center; align-items: center;
-    z-index: 10;
-  }
-  #ui.hidden { display: none; }
-  #title {
-    font-size: 3rem;
-    color: #d63031;
-    margin-bottom: 20px;
-    text-shadow: 1px 1px 2px #7a1b1b;
-  }
-  #bestScore {
-    font-size: 1.5rem;
-    margin-bottom: 40px;
-    color: #2d3436;
-  }
-  button {
-    background: #d63031;
-    color: white;
-    border: none;
-    border-radius: 18px;
-    padding: 18px 48px;
-    font-size: 1.8rem;
-    cursor: pointer;
-    box-shadow: 0 6px 20px rgba(214, 48, 49, 0.7);
-    transition: background-color 0.3s ease;
-  }
-  button:hover {
-    background: #b22222;
-  }
-  #score {
-    position: fixed;
-    top: 20px; left: 50%;
-    transform: translateX(-50%);
-    font-size: 28px;
-    font-weight: 700;
-    color: #2c3e50;
-    text-shadow: 1px 1px 3px #fff;
-    user-select: none;
-    z-index: 10;
-    display: none;
-  }
-  #gameOverMessage {
-    position: fixed;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(255 255 255 / 0.97);
-    padding: 30px 40px;
-    border-radius: 22px;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-    font-size: 26px;
-    color: #d63031;
-    font-weight: 700;
-    text-align: center;
-    max-width: 80vw;
-    user-select: none;
-    z-index: 20;
-    display: none;
-  }
-  #restartBtn {
-    margin-top: 24px;
-    padding: 14px 34px;
-    font-size: 22px;
-    font-weight: 700;
-    background: #d63031;
-    color: white;
-    border: none;
-    border-radius: 18px;
-    cursor: pointer;
-    box-shadow: 0 6px 18px rgba(214, 48, 49, 0.8);
-  }
-  #restartBtn:hover {
-    background: #b82727;
   }
   canvas {
     display: block;
-    position: fixed;
-    top:0; left:0;
-    width: 100vw; height: 100vh;
-    z-index: 1;
     background: transparent;
+  }
+  #score {
+    position: fixed;
+    top: 12px; left: 12px;
+    font-size: 24px;
+    font-weight: bold;
+    color: #222;
+    text-shadow: 1px 1px 2px #fff;
+    user-select: none;
+    z-index: 10;
   }
 </style>
 </head>
 <body>
-
-<div id="ui">
-  <div id="title">Flappy Heart ❤️</div>
-  <div id="bestScore">Meilleur score : 0</div>
-  <button id="startBtn">Jouer</button>
-</div>
-
-<div id="score">Score : 0</div>
-
-<div id="gameOverMessage">
-  <div>Comme c’est pas grave mon amour,<br>chaque essai te rapproche plus près du ciel.</div>
-  <button id="restartBtn">Rejouer</button>
-</div>
-
+<div id="score">0</div>
 <canvas id="gameCanvas"></canvas>
-
 <script>
 (() => {
-  // Elements DOM
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
-  const ui = document.getElementById('ui');
-  const startBtn = document.getElementById('startBtn');
-  const bestScoreEl = document.getElementById('bestScore');
-  const scoreEl = document.getElementById('score');
-  const gameOverMessage = document.getElementById('gameOverMessage');
-  const restartBtn = document.getElementById('restartBtn');
-
-  // Dimensions
   let W, H;
+
   function resize() {
     W = window.innerWidth;
     H = window.innerHeight;
@@ -139,23 +45,17 @@
   resize();
   window.addEventListener('resize', resize);
 
-  // Constantes de jeu
   const gravity = 0.6;
   const jumpForce = -11;
   const pipeSpeed = 3;
-  const pipeWidthRatio = 0.12; // largeur tuyau = 12% largeur écran
-  const pipeGapRatio = 0.35;   // espace vertical entre tuyaux = 35% hauteur écran
-  const groundHeightRatio = 0.12; // hauteur sol = 12% hauteur écran
+  const pipeWidthRatio = 0.12;
+  const pipeGapRatio = 0.35;
+  const groundHeightRatio = 0.12;
   let groundHeight;
 
-  // Variables jeu
-  let bird, pipes, frameCount, score, gameOver, animationId;
+  let bird, pipes, score, frameCount, gameOver;
+  const scoreEl = document.getElementById('score');
 
-  // Récup meilleur score localStorage
-  let bestScore = parseInt(localStorage.getItem('bestScore') || '0');
-  bestScoreEl.textContent = 'Meilleur score : ' + bestScore;
-
-  // Création oiseau (coeur)
   function createBird() {
     return {
       x: W * 0.25,
@@ -165,16 +65,12 @@
       update() {
         this.velocity += gravity;
         this.y += this.velocity;
-        // Collision sol
         if (this.y + this.size / 2 > H - groundHeight) {
           this.y = H - groundHeight - this.size / 2;
-          this.velocity = 0;
           gameOver = true;
         }
-        // Collision plafond
         if (this.y - this.size / 2 < 0) {
           this.y = this.size / 2;
-          this.velocity = 0;
           gameOver = true;
         }
       },
@@ -211,27 +107,10 @@
         );
         ctx.closePath();
         ctx.fill();
-        // lumière douce
-        ctx.fillStyle = 'rgba(255,150,150,0.5)';
-        ctx.beginPath();
-        ctx.moveTo(x - s / 6, y + s / 3);
-        ctx.bezierCurveTo(
-          x - s / 8, y + s / 6,
-          x + s / 8, y + s / 6,
-          x + s / 6, y + s / 3
-        );
-        ctx.bezierCurveTo(
-          x + s / 12, y + s / 2,
-          x - s / 12, y + s / 2,
-          x - s / 6, y + s / 3
-        );
-        ctx.closePath();
-        ctx.fill();
       }
     };
   }
 
-  // Classe tuyau (pipe)
   class Pipe {
     constructor(x, width, topHeight, gap) {
       this.x = x;
@@ -244,38 +123,34 @@
       this.x -= pipeSpeed;
     }
     draw() {
-      ctx.fillStyle = '#6b4226'; // marron foncé
-      // haut
+      ctx.fillStyle = '#6b4226';
+      // Top pipe
       ctx.fillRect(this.x, 0, this.width, this.topHeight);
-      // bas
+      // Bottom pipe
       ctx.fillRect(this.x, this.topHeight + this.gap, this.width, H - groundHeight - (this.topHeight + this.gap));
-
-      // anneaux bois - ronds horizontaux
+      // Rings
       ctx.strokeStyle = '#8b5e3c';
       ctx.lineWidth = 3;
       const ringSpacing = 20;
 
-      // Haut tuyau
-      let ringCountTop = Math.floor(this.topHeight / ringSpacing);
-      for (let i = 0; i < ringCountTop; i++) {
-        let y = i * ringSpacing + ringSpacing / 2;
+      let countTop = Math.floor(this.topHeight / ringSpacing);
+      for(let i=0; i<countTop; i++) {
+        let y = i*ringSpacing + ringSpacing/2;
         ctx.beginPath();
-        ctx.ellipse(this.x + this.width / 2, y, this.width / 2 - 5, 5, 0, 0, Math.PI * 2);
+        ctx.ellipse(this.x + this.width/2, y, this.width/2 - 5, 5, 0, 0, Math.PI*2);
         ctx.stroke();
       }
-      // Bas tuyau
       let bottomHeight = H - groundHeight - (this.topHeight + this.gap);
-      let ringCountBot = Math.floor(bottomHeight / ringSpacing);
-      for (let i = 0; i < ringCountBot; i++) {
-        let y = this.topHeight + this.gap + i * ringSpacing + ringSpacing / 2;
+      let countBot = Math.floor(bottomHeight / ringSpacing);
+      for(let i=0; i<countBot; i++) {
+        let y = this.topHeight + this.gap + i*ringSpacing + ringSpacing/2;
         ctx.beginPath();
-        ctx.ellipse(this.x + this.width / 2, y, this.width / 2 - 5, 5, 0, 0, Math.PI * 2);
+        ctx.ellipse(this.x + this.width/2, y, this.width/2 - 5, 5, 0, 0, Math.PI*2);
         ctx.stroke();
       }
     }
   }
 
-  // Initialisation jeu
   function initGame() {
     groundHeight = H * groundHeightRatio;
     bird = createBird();
@@ -283,13 +158,118 @@
     frameCount = 0;
     score = 0;
     gameOver = false;
-    scoreEl.textContent = 'Score : 0';
-    scoreEl.style.display = 'block';
-    gameOverMessage.style.display = 'none';
+    scoreEl.textContent = '0';
   }
 
-  // Créer un pipe avec hauteur aléatoire
   function createPipe() {
     const pipeWidth = W * pipeWidthRatio;
     const gap = H * pipeGapRatio;
-    // hauteur top entre 15% et
+    const minTop = 50;
+    const maxTop = H - groundHeight - gap - 50;
+    const topHeight = Math.random() * (maxTop - minTop) + minTop;
+    return new Pipe(W, pipeWidth, topHeight, gap);
+  }
+
+  function collides(bird, pipe) {
+    const bx1 = bird.x - bird.size/2;
+    const bx2 = bird.x + bird.size/2;
+    const by1 = bird.y - bird.size/2;
+    const by2 = bird.y + bird.size/2;
+
+    // pipe top rectangle
+    const px1 = pipe.x;
+    const px2 = pipe.x + pipe.width;
+    const py1 = 0;
+    const py2 = pipe.topHeight;
+
+    // pipe bottom rectangle
+    const py3 = pipe.topHeight + pipe.gap;
+    const py4 = H - groundHeight;
+
+    // collision avec le tuyau haut
+    if (!(bx2 < px1 || bx1 > px2 || by1 > py2)) {
+      return true;
+    }
+    // collision avec le tuyau bas
+    if (!(bx2 < px1 || bx1 > px2 || by2 < py3)) {
+      return true;
+    }
+    return false;
+  }
+
+  function drawGround() {
+    ctx.fillStyle = '#2ecc71'; // vert herbe
+    ctx.fillRect(0, H - groundHeight, W, groundHeight);
+  }
+
+  function gameLoop() {
+    ctx.clearRect(0,0,W,H);
+
+    drawGround();
+
+    if(frameCount % 90 === 0) {
+      pipes.push(createPipe());
+    }
+
+    pipes.forEach(pipe => {
+      pipe.update();
+      pipe.draw();
+    });
+
+    pipes = pipes.filter(pipe => pipe.x + pipe.width > 0);
+
+    bird.update();
+    bird.draw();
+
+    // Check collisions and scoring
+    pipes.forEach(pipe => {
+      if(!pipe.passed && pipe.x + pipe.width < bird.x) {
+        score++;
+        pipe.passed = true;
+        scoreEl.textContent = score;
+      }
+      if(collides(bird, pipe)) {
+        gameOver = true;
+      }
+    });
+
+    if(gameOver) {
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(0,0,W,H);
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 48px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Game Over', W/2, H/2 - 24);
+      ctx.font = '28px Arial';
+      ctx.fillText(`Score : ${score}`, W/2, H/2 + 20);
+      ctx.font = '20px Arial';
+      ctx.fillText('Clique ou appuie sur espace pour rejouer', W/2, H/2 + 60);
+      cancelAnimationFrame(animationId);
+      return;
+    }
+
+    frameCount++;
+    animationId = requestAnimationFrame(gameLoop);
+  }
+
+  function startGame() {
+    initGame();
+    gameLoop();
+  }
+
+  window.addEventListener('keydown', e => {
+    if(e.code === 'Space') {
+      if(gameOver) startGame();
+      else bird.jump();
+    }
+  });
+  window.addEventListener('mousedown', e => {
+    if(gameOver) startGame();
+    else bird.jump();
+  });
+
+  startGame();
+})();
+</script>
+</body>
+</html>
