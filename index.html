@@ -3,13 +3,12 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Flappy Heart - Ville Stylée</title>
+<title>Flappy Heart - Cartoon Style</title>
 <style>
   html, body {
-    margin: 0; padding: 0; height: 100%; overflow: hidden;
-    background: linear-gradient(to top, #1a1a40 0%, #3a3a70 70%, #aabbff 100%);
-    font-family: Arial, sans-serif;
-    user-select: none;
+    margin: 0; padding: 0; overflow: hidden; height: 100%;
+    background: linear-gradient(to top, #87ceeb 0%, #b3d7ff 100%);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   }
   canvas {
     display: block;
@@ -18,31 +17,74 @@
     width: 100vw;
     height: 100vh;
     background: transparent;
-    z-index: 0;
   }
   #score {
     position: fixed;
     top: 20px; left: 50%;
     transform: translateX(-50%);
-    color: #ff5959;
-    font-weight: bold;
     font-size: 28px;
-    text-shadow: 0 0 6px #ff3b3b;
+    font-weight: bold;
+    color: #1e2a3a;
+    text-shadow: 1px 1px 3px #fff;
+    user-select: none;
     z-index: 10;
+  }
+  #gameOverMessage {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255 255 255 / 0.95);
+    padding: 30px 40px;
+    border-radius: 20px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+    font-size: 24px;
+    color: #d63031;
+    font-weight: 700;
+    text-align: center;
+    max-width: 80vw;
+    user-select: none;
+    z-index: 20;
+    display: none;
+  }
+  #restartBtn {
+    margin-top: 20px;
+    padding: 12px 28px;
+    font-size: 20px;
+    font-weight: 700;
+    background: #d63031;
+    color: white;
+    border: none;
+    border-radius: 15px;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(214, 48, 49, 0.8);
+    transition: background 0.3s ease;
+  }
+  #restartBtn:hover {
+    background: #b82727;
   }
 </style>
 </head>
 <body>
 
-<div id="score">Score : 0</div>
+<div id="score">Score: 0</div>
+
+<div id="gameOverMessage">
+  <div>Ne baisse pas les bras,<br>chaque vol te rapproche du ciel.</div>
+  <button id="restartBtn">Rejouer</button>
+</div>
+
 <canvas id="gameCanvas"></canvas>
 
 <script>
 (() => {
   const canvas = document.getElementById('gameCanvas');
   const ctx = canvas.getContext('2d');
-  let W, H;
+  const scoreEl = document.getElementById('score');
+  const gameOverMessage = document.getElementById('gameOverMessage');
+  const restartBtn = document.getElementById('restartBtn');
 
+  let W, H;
   function resize() {
     W = window.innerWidth;
     H = window.innerHeight;
@@ -52,218 +94,159 @@
   resize();
   window.addEventListener('resize', resize);
 
-  // VARIABLES JEU
-  const gravity = 0.6;
-  const jumpPower = -10;
+  // GAME VARIABLES
+  let bird, pipes, frameCount, score, gameOver, clouds, city;
+
+  // CONSTANTS
+  const gravity = 0.65;
+  const jumpForce = -11;
   const pipeWidth = W * 0.12;
-  const pipeGap = H * 0.28;
+  const pipeGap = H * 0.3;
   const groundHeight = H * 0.12;
 
-  let bird = {
-    x: W * 0.25,
-    y: H / 2,
-    size: 40,
-    velocity: 0,
-    pulseDir: 1,
-    pulseAmount: 0,
-    update() {
-      this.velocity += gravity;
-      this.y += this.velocity;
+  // ======= Bird (Heart) Cartoon Style =======
+  function createBird() {
+    return {
+      x: W * 0.25,
+      y: H / 2,
+      baseSize: 45,
+      size: 45,
+      velocity: 0,
+      pulseDir: 1,
+      pulseSpeed: 0.025,
+      pulseScale: 0,
+      update() {
+        this.velocity += gravity;
+        this.y += this.velocity;
 
-      if(this.y + this.size/2 > H - groundHeight) {
-        this.y = H - groundHeight - this.size/2;
-        this.velocity = 0;
-        gameOver = true;
+        if(this.y + this.size/2 > H - groundHeight) {
+          this.y = H - groundHeight - this.size/2;
+          this.velocity = 0;
+          gameOver = true;
+        }
+        if(this.y - this.size/2 < 0) {
+          this.y = this.size/2;
+          this.velocity = 0;
+          gameOver = true;
+        }
+
+        // Pulsate (scale from 0.95 to 1.05)
+        this.pulseScale += this.pulseSpeed * this.pulseDir;
+        if(this.pulseScale > 0.05 || this.pulseScale < -0.05) this.pulseDir *= -1;
+        this.size = this.baseSize * (1 + this.pulseScale);
+      },
+      jump() {
+        this.velocity = jumpForce;
+      },
+      draw() {
+        const x = this.x;
+        const y = this.y;
+        const size = this.size;
+        const topCurveHeight = size * 0.35;
+
+        ctx.save();
+
+        // Shadow / Glow effect
+        ctx.shadowColor = 'rgba(219, 38, 38, 0.7)';
+        ctx.shadowBlur = size * 0.3;
+
+        // Draw heart shape
+        ctx.beginPath();
+        ctx.moveTo(x, y + topCurveHeight);
+        ctx.bezierCurveTo(x, y,
+          x - size / 2, y,
+          x - size / 2, y + topCurveHeight);
+        ctx.bezierCurveTo(x - size / 2, y + (size + topCurveHeight) / 2,
+          x, y + (size + topCurveHeight) / 1.1,
+          x, y + size);
+        ctx.bezierCurveTo(x, y + (size + topCurveHeight) / 1.1,
+          x + size / 2, y + (size + topCurveHeight) / 2,
+          x + size / 2, y + topCurveHeight);
+        ctx.bezierCurveTo(x + size / 2, y,
+          x, y,
+          x, y + topCurveHeight);
+        ctx.closePath();
+
+        // Gradient fill (cartoon style)
+        let grad = ctx.createLinearGradient(x - size/2, y, x + size/2, y + size);
+        grad.addColorStop(0, '#e63946');
+        grad.addColorStop(0.5, '#d62828');
+        grad.addColorStop(1, '#9b1b1b');
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // Glossy highlight (cartoon)
+        let glossGrad = ctx.createRadialGradient(x - size*0.15, y - size*0.35, size*0.05, x - size*0.1, y - size*0.4, size*0.2);
+        glossGrad.addColorStop(0, 'rgba(255,255,255,0.7)');
+        glossGrad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = glossGrad;
+        ctx.fill();
+
+        // White stroke outline for cartoon effect
+        ctx.lineWidth = 3;
+        ctx.shadowColor = 'transparent';
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        ctx.stroke();
+
+        ctx.restore();
       }
-      if(this.y - this.size/2 < 0) {
-        this.y = this.size/2;
-        this.velocity = 0;
-        gameOver = true;
-      }
+    };
+  }
 
-      this.pulseAmount += 0.02 * this.pulseDir;
-      if(this.pulseAmount > 0.05 || this.pulseAmount < -0.05) this.pulseDir *= -1;
-    },
-    draw() {
-      const size = this.size * (1 + this.pulseAmount);
-      const x = this.x;
-      const y = this.y;
-
-      ctx.shadowColor = 'rgba(255,80,80,0.8)';
-      ctx.shadowBlur = size * 0.3;
-
-      const grad = ctx.createLinearGradient(x - size/2, y, x + size/2, y + size);
-      grad.addColorStop(0, '#ff4b5c');
-      grad.addColorStop(0.5, '#d63031');
-      grad.addColorStop(1, '#8b1a1a');
-      ctx.fillStyle = grad;
-
-      ctx.beginPath();
-      ctx.moveTo(x, y + size * 0.3);
-      ctx.bezierCurveTo(x, y,
-        x - size / 2, y,
-        x - size / 2, y + size * 0.3);
-      ctx.bezierCurveTo(x - size / 2, y + (size + size * 0.3) / 2,
-        x, y + (size + size * 0.3) / 1.2,
-        x, y + size);
-      ctx.bezierCurveTo(x, y + (size + size * 0.3) / 1.2,
-        x + size / 2, y + (size + size * 0.3) / 2,
-        x + size / 2, y + size * 0.3);
-      ctx.bezierCurveTo(x + size / 2, y,
-        x, y,
-        x, y + size * 0.3);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.shadowBlur = 0;
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-      ctx.stroke();
-    },
-    jump() {
-      this.velocity = jumpPower;
-    }
-  };
-
+  // ======= Pipes (Wood Cartoon) =======
   class Pipe {
     constructor(x) {
       this.x = x;
       this.width = pipeWidth;
       this.gap = pipeGap;
-      const minHeight = 70;
+      const minHeight = 50;
       this.topHeight = minHeight + Math.random() * (H - groundHeight - this.gap - minHeight);
       this.passed = false;
+      this.speed = 3;
     }
     update() {
-      this.x -= 4;
-      if(this.x + this.width < 0) {
-        this.x = W;
-        this.topHeight = 70 + Math.random() * (H - groundHeight - this.gap - 70);
-        this.passed = false;
-      }
+      this.x -= this.speed;
     }
     draw() {
-      ctx.fillStyle = '#6d4b1c';
-      ctx.fillRect(this.x, 0, this.width, this.topHeight);
-      ctx.fillRect(this.x, this.topHeight + this.gap, this.width, H - groundHeight - (this.topHeight + this.gap));
+      this.drawTrunk(this.x, 0, this.width, this.topHeight);
+      const bottomY = this.topHeight + this.gap;
+      this.drawTrunk(this.x, bottomY, this.width, H - groundHeight - bottomY);
+    }
+    drawTrunk(x, y, width, height) {
+      ctx.save();
 
-      // Simple wood lines on pipes
-      ctx.strokeStyle = '#4c3310';
-      ctx.lineWidth = 1;
-      for(let i = 0; i < this.topHeight; i += 10) {
+      // Base wood fill
+      let woodGrad = ctx.createLinearGradient(x, y, x + width, y + height);
+      woodGrad.addColorStop(0, '#9c704a');
+      woodGrad.addColorStop(0.5, '#7a5437');
+      woodGrad.addColorStop(1, '#603d25');
+      ctx.fillStyle = woodGrad;
+      ctx.fillRect(x, y, width, height);
+
+      // Texture lines (curved cartoon style)
+      ctx.strokeStyle = '#5a3e27';
+      ctx.lineWidth = 1.2;
+      for(let i=0; i < height; i += 8){
         ctx.beginPath();
-        ctx.moveTo(this.x, i);
-        ctx.lineTo(this.x + this.width, i + 5);
+        let offset = (i % 16 < 8) ? 0 : 4;
+        ctx.moveTo(x, y + i + offset);
+        ctx.bezierCurveTo(x + width/3, y + i + 8 + offset, x + 2*width/3, y + i - 8 + offset, x + width, y + i + offset);
         ctx.stroke();
       }
-      for(let i = this.topHeight + this.gap; i < H - groundHeight; i += 10) {
+
+      // Bark cracks (vertical wavy lines)
+      ctx.strokeStyle = '#4b3a28';
+      ctx.lineWidth = 1.5;
+      for(let i=0; i < width; i += 7){
         ctx.beginPath();
-        ctx.moveTo(this.x, i);
-        ctx.lineTo(this.x + this.width, i + 5);
+        let crackX = x + i + Math.sin(i*4 + y*0.7)*1.8;
+        ctx.moveTo(crackX, y);
+        ctx.lineTo(crackX, y + height);
         ctx.stroke();
       }
-    }
-  }
 
-  let pipes = [];
-  let frameCount = 0;
-  let score = 0;
-  let gameOver = false;
-
-  function resetGame() {
-    bird.y = H / 2;
-    bird.velocity = 0;
-    pipes = [];
-    for(let i = 0; i < 3; i++) {
-      pipes.push(new Pipe(W + i * (pipeWidth * 3)));
-    }
-    score = 0;
-    gameOver = false;
-  }
-  resetGame();
-
-  function drawBackground() {
-    // Simple city skyline
-    const buildingCount = 15;
-    const baseHeight = groundHeight * 0.8;
-    for(let i = 0; i < buildingCount; i++) {
-      const bw = W / buildingCount;
-      const bh = baseHeight + Math.sin((frameCount * 0.01 + i) * 3) * 20 + 80;
-      ctx.fillStyle = '#24305e';
-      ctx.fillRect(i * bw, H - groundHeight - bh, bw - 4, bh);
-      // windows
-      ctx.fillStyle = '#ffde59';
-      for(let y = H - groundHeight - bh + 10; y < H - groundHeight - 10; y += 20) {
-        for(let x = i * bw + 10; x < (i+1) * bw - 10; x += 15) {
-          if(Math.random() > 0.9) continue;
-          ctx.fillRect(x, y, 7, 10);
-        }
-      }
-    }
-    // Ground
-    ctx.fillStyle = '#382f2f';
-    ctx.fillRect(0, H - groundHeight, W, groundHeight);
-  }
-
-  function update() {
-    if(gameOver) return;
-    bird.update();
-
-    pipes.forEach(pipe => {
-      pipe.update();
-      if(!pipe.passed && pipe.x + pipe.width < bird.x - bird.size/2) {
-        pipe.passed = true;
-        score++;
-        scoreEl.textContent = 'Score : ' + score;
-      }
-      // collision detection
-      if(bird.x + bird.size/2 > pipe.x && bird.x - bird.size/2 < pipe.x + pipe.width) {
-        if(bird.y - bird.size/2 < pipe.topHeight || bird.y + bird.size/2 > pipe.topHeight + pipe.gap) {
-          gameOver = true;
-        }
-      }
-    });
-  }
-
-  function draw() {
-    ctx.clearRect(0, 0, W, H);
-    drawBackground();
-    pipes.forEach(pipe => pipe.draw());
-    bird.draw();
-
-    if(gameOver) {
-      ctx.fillStyle = 'rgba(0,0,0,0.6)';
-      ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = '#ff5959';
-      ctx.font = 'bold 48px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('Game Over', W/2, H/2 - 40);
-      ctx.font = 'bold 28px Arial';
-      ctx.fillText(`Score final : ${score}`, W/2, H/2 + 10);
-      ctx.font = '20px Arial';
-      ctx.fillText('Appuie sur Espace pour rejouer', W/2, H/2 + 50);
-    }
-  }
-
-  function loop() {
-    frameCount++;
-    update();
-    draw();
-    requestAnimationFrame(loop);
-  }
-  loop();
-
-  window.addEventListener('keydown', e => {
-    if(e.code === 'Space') {
-      if(gameOver) {
-        resetGame();
-        scoreEl.textContent = 'Score : 0';
-      }
-      bird.jump();
-    }
-  });
-})();
-</script>
-
-</body>
-</html>
+      // Outline with a thick darker line
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#3f2f1e';
+      ctx.strokeRect(x
+                    
