@@ -1,305 +1,492 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>Flappy Cœur Moderne</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Flappy Cœur - style cartoon</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@600&display=swap');
-  * {
-    margin: 0; padding: 0; box-sizing: border-box;
+  :root{
+    --accent:#d91c46; /* coeur rouge */
+    --bg-sky:#9fd9ff;
+    --bg-horizon:#72c9ff;
+    --wood1:#a9743a;
+    --wood2:#6b451f;
   }
-  html, body {
-    width: 100%; height: 100%;
-    overflow: hidden;
-    font-family: 'Poppins', sans-serif;
-    background: linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%);
-    display: flex; justify-content: center; align-items: center;
+  html,body{height:100%;margin:0;background:linear-gradient(180deg,var(--bg-sky),var(--bg-horizon));-webkit-font-smoothing:antialiased;}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+  #gameCanvas{display:block; border-radius:18px; box-shadow:0 18px 50px rgba(20,30,40,0.25); touch-action:none; background:transparent;}
+  #ui {
+    position:fixed; left:50%; transform:translateX(-50%); top:18px; z-index:30; text-align:center;
+    color:#063649; text-shadow:0 1px 0 rgba(255,255,255,0.3);
+    pointer-events:none;
   }
-  #game {
-    display: block;
-    background: linear-gradient(180deg, #d0e6ff 0%, #8ab4f8 100%);
-    border-radius: 24px;
-    box-shadow: 0 12px 24px rgba(34, 60, 80, 0.3);
-    touch-action: none;
-  }
-  #score {
-    position: fixed;
-    top: 30px;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 28px;
-    font-weight: 600;
-    color: #fff;
-    text-shadow: 0 0 6px rgba(255,0,80,0.8);
-    user-select: none;
-  }
+  #score { font-weight:700; font-size:20px; pointer-events:none; background: rgba(255,255,255,0.25); padding:6px 12px; border-radius:12px; display:inline-block;}
   #message {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: rgba(255, 255, 255, 0.9);
-    padding: 30px 40px;
-    border-radius: 28px;
-    box-shadow: 0 8px 30px rgba(255, 0, 80, 0.4);
-    color: #ff004f;
-    font-weight: 600;
-    font-size: 22px;
-    text-align: center;
-    line-height: 1.4;
-    user-select: none;
-    display: none;
-    max-width: 90vw;
+    position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:40;
+    width:90%; max-width:480px; background:rgba(255,255,255,0.97); border-radius:16px; padding:18px;
+    box-shadow:0 8px 30px rgba(0,0,0,0.25); display:none; text-align:center; color:var(--wood2);
   }
-  #restartBtn {
-    margin-top: 20px;
-    background: #ff004f;
-    color: white;
-    border: none;
-    padding: 12px 30px;
-    border-radius: 18px;
-    font-size: 18px;
-    cursor: pointer;
-    font-weight: 700;
-    box-shadow: 0 6px 12px rgba(255, 0, 79, 0.7);
-    transition: background 0.3s ease;
+  #message p{margin:8px 0; font-size:18px;}
+  #restartBtn{
+    margin-top:10px; appearance:none; -webkit-appearance:none;
+    background:var(--accent); color:white; border:none; padding:10px 18px; border-radius:12px;
+    font-weight:700; font-size:16px; cursor:pointer;
   }
-  #restartBtn:hover {
-    background: #ff3366;
-  }
-  /* Heart shape */
-  .heart {
-    position: absolute;
-    width: 40px;
-    height: 36px;
-    background: #ff004f;
-    transform: rotate(-45deg);
-    filter: drop-shadow(0 0 6px #ff004f99);
-    animation: beat 1.2s infinite ease-in-out;
-  }
-  .heart::before,
-  .heart::after {
-    content: "";
-    position: absolute;
-    width: 40px;
-    height: 36px;
-    background: #ff004f;
-    border-radius: 50%;
-  }
-  .heart::before {
-    top: -20px;
-    left: 0;
-  }
-  .heart::after {
-    left: 20px;
-    top: 0;
-  }
-  @keyframes beat {
-    0%, 100% { transform: rotate(-45deg) scale(1); }
-    50% { transform: rotate(-45deg) scale(1.1); }
-  }
+  /* small helper for debug (hidden normally) */
+  .hidden{display:none;}
 </style>
 </head>
 <body>
-<div id="score">Score: 0</div>
-<canvas id="game"></canvas>
-<div id="message">
-  C’est pas grave mon amour ❤️<br />
-  Chaque tentative te rapproche plus près du ciel ☁️✨<br />
-  <button id="restartBtn">Rejouer</button>
-</div>
+  <div id="ui"><div id="score">Score: 0</div></div>
+  <canvas id="gameCanvas"></canvas>
+
+  <div id="message" role="dialog" aria-live="polite">
+    <p><strong>C’est pas grave mon amour ❤️</strong></p>
+    <p>Chaque tentative te rapproche plus près du ciel ☁️✨</p>
+    <button id="restartBtn">Rejouer</button>
+  </div>
 
 <script>
 (() => {
-  const canvas = document.getElementById('game');
-  const ctx = canvas.getContext('2d');
+  // -------------------------
+  // Setup canvas full screen
+  // -------------------------
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d', {alpha:false});
   const scoreEl = document.getElementById('score');
   const messageEl = document.getElementById('message');
   const restartBtn = document.getElementById('restartBtn');
 
-  // Fullscreen canvas with some margin for rounded edges on iOS
-  function resize() {
-    canvas.width = window.innerWidth * 0.95;
-    canvas.height = window.innerHeight * 0.95;
+  function resizeCanvas(){
+    // fill viewport with some margin so rounded corners are visible
+    const margin = 0; // set >0 if you want border around canvas
+    canvas.width = Math.max(360, Math.floor(window.innerWidth - margin*2));
+    canvas.height = Math.max(600, Math.floor(window.innerHeight - margin*2));
+    // scale factor for assets
+    scale = canvas.width / 390; // base width 390 for consistent sizing
   }
-  window.addEventListener('resize', resize);
-  resize();
+  window.addEventListener('resize', resizeCanvas);
+  let scale = 1;
+  resizeCanvas();
 
-  // Game variables
-  const gravity = 0.55;
-  const flapPower = -11;
-  const obstacleSpeed = 4.5;
-  const gapHeight = 160;
-  const obstacleWidth = 70;
-
+  // -------------------------
+  // Game state
+  // -------------------------
   let frames = 0;
+  let obstacles = [];
+  let clouds = [];
+  let particles = [];
   let score = 0;
+  let running = true;
   let gameOver = false;
 
-  // Heart player
-  const heart = {
-    x: canvas.width * 0.2,
-    y: canvas.height / 2,
-    radius: 20,
-    velocity: 0,
-    draw() {
-      // Heart shape using canvas path (simplified)
-      ctx.save();
-      ctx.translate(this.x, this.y);
-      ctx.scale(1,1);
-      ctx.rotate(-Math.PI / 4);
-      ctx.fillStyle = '#ff004f';
-      ctx.shadowColor = '#ff004faa';
-      ctx.shadowBlur = 12;
+  // parameters (tweak for feel)
+  const GRAVITY = 0.5;
+  const FLAP = -10 * 1.05;
+  const OB_SPEED = 3.8;
+  const GAP = Math.round(150 * scale);
+  const OB_W = Math.round(78 * scale);
 
+  // -------------------------
+  // Background parallax layers
+  // -------------------------
+  const mountains = [
+    {x:0, y:canvas.height*0.6, w:canvas.width*0.9, h:120*scale, speed:0.15},
+    {x:canvas.width*0.2, y:canvas.height*0.67, w:canvas.width*0.8, h:90*scale, speed:0.25}
+  ];
+
+  function initClouds(){
+    clouds = [];
+    const count = Math.max(4, Math.round(6*scale));
+    for(let i=0;i<count;i++){
+      clouds.push({
+        x:Math.random()*canvas.width,
+        y:Math.random()*canvas.height*0.45,
+        scale:0.6 + Math.random()*0.9,
+        speed: 0.3 + Math.random()*0.8
+      });
+    }
+  }
+  initClouds();
+
+  // -------------------------
+  // Player heart (red)
+  // -------------------------
+  const player = {
+    x: Math.round(canvas.width * 0.22),
+    y: Math.round(canvas.height * 0.45),
+    vy: 0,
+    radius: Math.round(18 * scale),
+    draw() {
+      // cartoon heart with shading and small beat
+      ctx.save();
+      const t = frames / 10;
+      const beat = 1 + 0.03 * Math.sin(t);
+      ctx.translate(this.x, this.y);
+      ctx.scale(beat, beat);
+      // shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.08)';
       ctx.beginPath();
+      ctx.ellipse(0, this.radius+10, this.radius*1.1, this.radius*0.6, 0, 0, Math.PI*2);
+      ctx.fill();
+      // main heart
+      ctx.fillStyle = '#d91c46';
+      ctx.shadowColor = 'rgba(217,28,70,0.7)';
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      const r = this.radius;
       ctx.moveTo(0, 0);
-      ctx.arc(0, -this.radius/2, this.radius/2, 0, Math.PI, true);
-      ctx.arc(this.radius/2, -this.radius/2, this.radius/2, 0, Math.PI, true);
-      ctx.lineTo(0, this.radius);
-      ctx.closePath();
+      ctx.arc(-r*0.5, -r*0.5, r*0.6, 0, Math.PI*2);
+      ctx.arc(r*0.4, -r*0.55, r*0.6, 0, Math.PI*2);
+      ctx.moveTo(-r, -r*0.1);
+      ctx.quadraticCurveTo(0, r*1.2, r, -r*0.1);
+      ctx.fill();
+      // small highlight
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.beginPath();
+      ctx.ellipse(-r*0.2, -r*0.55, r*0.25, r*0.12, 0, 0, Math.PI*2);
       ctx.fill();
       ctx.restore();
     },
     update() {
-      this.velocity += gravity;
-      this.y += this.velocity;
-      if (this.y + this.radius > canvas.height) {
-        this.y = canvas.height - this.radius;
-        this.velocity = 0;
-      }
-      if (this.y - this.radius < 0) {
-        this.y = this.radius;
-        this.velocity = 0;
-      }
+      this.vy += GRAVITY;
+      this.y += this.vy;
+      // clamp
+      if(this.y + this.radius > canvas.height - 6){ this.y = canvas.height - 6 - this.radius; this.vy = 0; gameOver = true; }
+      if(this.y - this.radius < 6){ this.y = 6 + this.radius; this.vy = 0; }
     },
-    flap() {
-      this.velocity = flapPower;
-    },
-    getBounds() {
-      return {
-        left: this.x - this.radius,
-        right: this.x + this.radius,
-        top: this.y - this.radius,
-        bottom: this.y + this.radius,
-      };
-    }
+    flap() { this.vy = FLAP; }
   };
 
-  // Obstacles array
-  let obstacles = [];
-
-  function createObstacle() {
-    const minHeight = 50;
-    const maxHeight = canvas.height - gapHeight - 50;
-    const topHeight = Math.random() * (maxHeight - minHeight) + minHeight;
+  // -------------------------
+  // Obstacles (wooden carved pillars)
+  // -------------------------
+  function spawnObstacle(){
+    const minTop = Math.round(60 * scale);
+    const maxTop = Math.round(canvas.height - GAP - 120*scale);
+    const top = Math.random()*(maxTop-minTop) + minTop;
     obstacles.push({
-      x: canvas.width + obstacleWidth,
-      topHeight,
-      bottomY: topHeight + gapHeight,
-      width: obstacleWidth,
-      passed: false,
-      colorTop: `hsl(340, 90%, 65%)`,
-      colorBottom: `hsl(350, 80%, 60%)`,
-      shadowTop: 'rgba(255, 20, 60, 0.6)',
-      shadowBottom: 'rgba(255, 30, 70, 0.7)',
+      x: canvas.width + 20,
+      top: top,
+      bottom: top + GAP,
+      w: OB_W,
+      passed: false
     });
   }
 
-  // Collision detection
-  function isColliding(rect, circle) {
-    // Closest point on rect to circle center
-    let closestX = Math.max(rect.left, Math.min(circle.x, rect.right));
-    let closestY = Math.max(rect.top, Math.min(circle.y, rect.bottom));
-    let dx = circle.x - closestX;
-    let dy = circle.y - closestY;
-    return (dx * dx + dy * dy) < (circle.radius * circle.radius);
-  }
-
-  function drawObstacle(obstacle) {
-    // Draw top rectangle with gradient and shadow
-    let gradTop = ctx.createLinearGradient(obstacle.x, 0, obstacle.x + obstacle.width, 0);
-    gradTop.addColorStop(0, obstacle.colorTop);
-    gradTop.addColorStop(1, '#fff0f3');
-    ctx.fillStyle = gradTop;
-    ctx.shadowColor = obstacle.shadowTop;
-    ctx.shadowBlur = 14;
-    ctx.fillRect(obstacle.x, 0, obstacle.width, obstacle.topHeight);
-
-    // Draw bottom rectangle
-    let gradBottom = ctx.createLinearGradient(obstacle.x, canvas.height, obstacle.x + obstacle.width, canvas.height);
-    gradBottom.addColorStop(0, obstacle.colorBottom);
-    gradBottom.addColorStop(1, '#fff0f3');
-    ctx.fillStyle = gradBottom;
-    ctx.shadowColor = obstacle.shadowBottom;
-    ctx.shadowBlur = 14;
-    ctx.fillRect(obstacle.x, obstacle.bottomY, obstacle.width, canvas.height - obstacle.bottomY);
-
-    // Reset shadow
+  // draw wood pillar with grain and knots
+  function drawWoodPillar(x,y,h,w){
+    // base rounded rect
+    const radius = 8 * scale;
+    ctx.save();
+    // shadow
+    ctx.shadowColor = 'rgba(30,20,10,0.25)';
+    ctx.shadowBlur = 12;
+    // wood gradient
+    const grad = ctx.createLinearGradient(x,y,x+w,y+h);
+    grad.addColorStop(0, '#c9925a');
+    grad.addColorStop(0.5, '#a9743a');
+    grad.addColorStop(1, '#7a4f2a');
+    ctx.fillStyle = grad;
+    // rect
+    roundRect(ctx, x, y, w, h, radius, true, false);
     ctx.shadowBlur = 0;
+    // wood lines (grain)
+    ctx.strokeStyle = 'rgba(120,70,30,0.12)';
+    ctx.lineWidth = Math.max(1, 1.2*scale);
+    for(let i=0;i<6;i++){
+      const yy = y + (i/6)*h + Math.sin((x+i*20)/50)*7*scale;
+      ctx.beginPath();
+      ctx.moveTo(x+6*scale, yy);
+      ctx.quadraticCurveTo(x + w*0.5, yy + 6*scale, x + w - 6*scale, yy - 6*scale);
+      ctx.stroke();
+    }
+    // small knots
+    ctx.fillStyle = 'rgba(60,30,20,0.18)';
+    for(let i=0;i<3;i++){
+      const kx = x + (0.2 + Math.random()*0.6)*w;
+      const ky = y + Math.random()*h;
+      ctx.beginPath();
+      ctx.ellipse(kx, ky, 6*scale, 4*scale, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
-  // Game over handler
-  function endGame() {
-    gameOver = true;
-    messageEl.style.display = 'block';
+  // rounded rectangle helper
+  function roundRect(ctx,x,y,w,h,r,fill,stroke){
+    if(typeof r === 'undefined') r=5;
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+    if(fill) ctx.fill();
+    if(stroke) ctx.stroke();
   }
 
-  // Restart game
-  restartBtn.addEventListener('click', () => {
-    gameOver = false;
-    messageEl.style.display = 'none';
-    score = 0;
-    scoreEl.textContent = `Score: 0`;
-    obstacles = [];
-    heart.y = canvas.height / 2;
-    heart.velocity = 0;
-    frames = 0;
-    createObstacle(); // spawn first obstacle
-    gameLoop();
-  });
+  // -------------------------
+  // Particles (sparkles on pass)
+  // -------------------------
+  function spawnParticles(cx, cy, color){
+    for(let i=0;i<18;i++){
+      particles.push({
+        x:cx, y:cy,
+        vx:(Math.random()-0.5)*4*scale,
+        vy:(Math.random()-1.5)*3*scale,
+        life: 30 + Math.random()*20,
+        size: 2 + Math.random()*3*scale,
+        color: color
+      });
+    }
+  }
 
+  function updateParticles(){
+    for(let i=particles.length-1;i>=0;i--){
+      const p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.06*scale;
+      p.life--;
+      if(p.life<=0) particles.splice(i,1);
+    }
+  }
+  function drawParticles(){
+    particles.forEach(p => {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, p.life/50);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, p.size, p.size*0.7, 0, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    });
+  }
+
+  // -------------------------
+  // Collision circle-rect
+  // -------------------------
+  function circleRectColl(cx, cy, cr, rx, ry, rw, rh){
+    const closestX = Math.max(rx, Math.min(cx, rx + rw));
+    const closestY = Math.max(ry, Math.min(cy, ry + rh));
+    const dx = cx - closestX;
+    const dy = cy - closestY;
+    return (dx*dx + dy*dy) < (cr*cr);
+  }
+
+  // -------------------------
   // Game loop
-  function gameLoop() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // -------------------------
+  function resetGame(){
+    frames = 0;
+    obstacles = [];
+    particles = [];
+    clouds.forEach((c,i)=>{ c.x = Math.random()*canvas.width; c.y = Math.random()*canvas.height*0.45; });
+    score = 0;
+    scoreEl.innerText = 'Score: 0';
+    player.x = Math.round(canvas.width * 0.22);
+    player.y = Math.round(canvas.height * 0.45);
+    player.vy = 0;
+    gameOver = false;
+    running = true;
+    // spawn first obstacles spaced
+    for(let i=0;i<2;i++){
+      spawnObstacle();
+      obstacles[obstacles.length-1].x += i * (canvas.width*0.5);
+    }
+    messageEl.style.display = 'none';
+    loop();
+  }
 
-    // Background subtle animated (moving gradient)
-    const bgGradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-    const color1 = `hsl(210, 90%, ${50 + 10 * Math.sin(frames * 0.02)}%)`;
-    const color2 = `hsl(220, 80%, ${70 + 10 * Math.cos(frames * 0.015)}%)`;
-    bgGradient.addColorStop(0, color1);
-    bgGradient.addColorStop(1, color2);
-    ctx.fillStyle = bgGradient;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  function drawBackground(){
+    // sky gradient
+    const g = ctx.createLinearGradient(0,0,0,canvas.height);
+    g.addColorStop(0, '#a7dbff');
+    g.addColorStop(0.6, '#9fd6ff');
+    g.addColorStop(1, '#dff6ff');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,canvas.width,canvas.height);
 
-    // Draw obstacles
-    obstacles.forEach(obstacle => {
-      drawObstacle(obstacle);
-      obstacle.x -= obstacleSpeed;
+    // distant mountains (soft shadows)
+    mountains.forEach((m, idx) => {
+      const offset = (frames * m.speed) % canvas.width;
+      const baseY = m.y;
+      ctx.save();
+      ctx.fillStyle = idx === 0 ? '#7a8fb2' : '#9ca9c6';
+      ctx.globalAlpha = idx === 0 ? 1 : 0.9;
+      ctx.beginPath();
+      ctx.moveTo(-canvas.width + offset, canvas.height);
+      ctx.lineTo(-canvas.width*0.2 + offset, baseY - 60*scale);
+      ctx.lineTo(canvas.width*0.3 + offset, baseY - 20*scale);
+      ctx.lineTo(canvas.width + offset, canvas.height);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    });
 
-      // Check score
-      if (!obstacle.passed && obstacle.x + obstacle.width < heart.x) {
+    // mid ground trees / hills - subtle
+    ctx.save();
+    ctx.translate(0, canvas.height*0.65);
+    for(let i=0;i<6;i++){
+      const tx = (i*canvas.width/6 - (frames*0.35)%canvas.width);
+      const h = 40*scale + (i%2)*20*scale;
+      drawTree(tx + canvas.width/6, 10*scale, h);
+    }
+    ctx.restore();
+
+    // clouds
+    clouds.forEach(c => {
+      ctx.save();
+      ctx.globalAlpha = 0.95;
+      drawCloud(c.x, c.y, c.scale);
+      ctx.restore();
+    });
+  }
+
+  function drawCloud(x,y,s){
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, 40*s, 24*s, 0, 0, Math.PI*2);
+    ctx.ellipse(x+30*s, y-6*s, 34*s, 20*s, 0, 0, Math.PI*2);
+    ctx.ellipse(x+55*s, y, 40*s, 24*s, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  function drawTree(x, offsetY, h){
+    // simple stylized tree
+    ctx.save();
+    ctx.translate(x, offsetY);
+    // trunk
+    ctx.fillStyle = '#6b3f1b';
+    ctx.fillRect(-6*scale, 0, 12*scale, h*0.6);
+    // leaves
+    ctx.fillStyle = '#0b7a3b';
+    ctx.beginPath();
+    ctx.ellipse(0, -10*scale, 32*scale, 28*scale, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawObstacles(){
+    obstacles.forEach(o=>{
+      // top pillar
+      drawWoodPillar(o.x, 0, o.top, o.w);
+      // bottom pillar
+      drawWoodPillar(o.x, o.bottom, canvas.height - o.bottom, o.w);
+      // little highlight stripe
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      ctx.fillRect(o.x + o.w*0.08, o.top*0.1, o.w*0.2, Math.max(10, o.top*0.4));
+      ctx.fillRect(o.x + o.w*0.72, o.bottom + (canvas.height - o.bottom)*0.1, o.w*0.16, Math.max(10, (canvas.height - o.bottom)*0.4));
+      ctx.restore();
+    });
+  }
+
+  function update(){
+    frames++;
+    // move clouds a bit
+    clouds.forEach(c => { c.x -= c.speed; if(c.x < -150) c.x = canvas.width + 150; });
+
+    // move obstacles
+    obstacles.forEach((o, idx) => {
+      o.x -= OB_SPEED;
+      // score check
+      if(!o.passed && o.x + o.w < player.x - player.radius){
+        o.passed = true;
         score++;
-        scoreEl.textContent = `Score: ${score}`;
-        obstacle.passed = true;
-        // Particles effect could be added here later
+        scoreEl.innerText = 'Score: ' + score;
+        // particles celebration
+        spawnParticles(player.x, player.y, 'rgba(217,28,70,0.95)');
       }
     });
+    // remove offscreen
+    if(obstacles.length && obstacles[0].x + obstacles[0].w < -50) obstacles.shift();
 
-    // Remove off-screen obstacles
-    obstacles = obstacles.filter(obstacle => obstacle.x + obstacle.width > 0);
-
-    // Create new obstacles every 100 frames
-    if (frames % 100 === 0) {
-      createObstacle();
+    // spawn
+    if(frames % Math.max(75, Math.round(90/scale)) === 0){
+      spawnObstacle();
     }
 
-    // Update & draw heart
-    heart.update();
-    heart.draw();
+    // update particles
+    updateParticles();
 
-    // Collision detection
-    for (const obstacle of obstacles) {
-      const rectTop = { left: obstacle.x, right: obstacle.x + obstacle.width, top: 0, bottom: obstacle.topHeight };
-      const rectBottom = { left: obstacle.x, right: obstacle.x + obstacle
+    // update player physics
+    player.update();
+
+    // check collisions
+    for(const o of obstacles){
+      // check top rect
+      if(circleRectColl(player.x, player.y, player.radius, o.x, 0, o.w, o.top)){
+        gameOver = true;
+      }
+      // bottom rect
+      if(circleRectColl(player.x, player.y, player.radius, o.x, o.bottom, o.w, canvas.height - o.bottom)){
+        gameOver = true;
+      }
+    }
+
+    // if hit ground or ceiling, handled in player.update() sets gameOver true
+    if(gameOver){ running = false; messageEl.style.display = 'block'; }
+  }
+
+  function render(){
+    drawBackground();
+    drawObstacles();
+    player.draw();
+    drawParticles();
+  }
+
+  function loop(){
+    if(!running) return;
+    update();
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  // -------------------------
+  // Input handling (touch/mouse)
+  // -------------------------
+  function onTap(e){
+    e.preventDefault();
+    if(!gameOver){
+      player.flap();
+    } else {
+      // if game over and user taps canvas, restart
+      resetGame();
+    }
+  }
+  canvas.addEventListener('touchstart', onTap, {passive:false});
+  canvas.addEventListener('mousedown', onTap);
+
+  // restart button
+  restartBtn.addEventListener('click', resetGame);
+
+  // -------------------------
+  // Start
+  // -------------------------
+  // ensure size-dependent values update
+  function start(){
+    resizeCanvas();
+    // reinit player & background dependent things
+    player.radius = Math.round(18 * scale);
+    player.x = Math.round(canvas.width * 0.22);
+    player.y = Math.round(canvas.height * 0.45);
+    mountains[0].y = canvas.height * 0.6;
+    mountains[1].y = canvas.height * 0.68;
+    initClouds();
+    resetGame();
+  }
+
+  start();
+
+  // expose debug (optional)
+  window.__game = { reset: resetGame, spawn: spawnObstacle };
+
+})();
+</script>
+</body>
+</html>
