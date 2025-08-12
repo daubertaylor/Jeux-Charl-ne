@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Flappy Heart - Version détaillée</title>
+<title>Flappy Heart</title>
 <style>
   html, body {
     margin: 0; padding: 0; overflow: hidden; height: 100%;
@@ -58,7 +58,6 @@
     border-radius: 15px;
     cursor: pointer;
     box-shadow: 0 6px 18px rgba(214, 48, 49, 0.8);
-    transition: background 0.3s ease;
   }
   #restartBtn:hover {
     background: #b82727;
@@ -104,17 +103,13 @@
   const pipeGap = H * 0.33;
   const groundHeight = H * 0.12;
 
-  // Bird object with pulsating animation
+  // Bird object
   function createBird() {
     return {
       x: W * 0.25,
       y: H / 2,
-      baseSize: 40,
       size: 40,
       velocity: 0,
-      pulseDir: 1,
-      pulseSpeed: 0.02,
-      pulseScale: 0,
       update() {
         this.velocity += gravity;
         this.y += this.velocity;
@@ -129,16 +124,12 @@
           this.velocity = 0;
           gameOver = true;
         }
-
-        // Pulsate (scale from 0.95 to 1.05)
-        this.pulseScale += this.pulseSpeed * this.pulseDir;
-        if(this.pulseScale > 0.05 || this.pulseScale < -0.05) this.pulseDir *= -1;
-        this.size = this.baseSize * (1 + this.pulseScale);
       },
       jump() {
         this.velocity = jumpForce;
       },
       draw() {
+        // draw a nice stylized heart
         const x = this.x;
         const y = this.y;
         const size = this.size;
@@ -146,9 +137,9 @@
 
         // Shadow/glow
         ctx.shadowColor = 'rgba(214,48,49,0.6)';
-        ctx.shadowBlur = size * 0.25;
+        ctx.shadowBlur = size * 0.15;
 
-        // Gradient fill with gloss highlight
+        // Gradient fill
         const grad = ctx.createLinearGradient(x - size/2, y, x + size/2, y + size);
         grad.addColorStop(0, '#e63946');
         grad.addColorStop(0.5, '#d62828');
@@ -172,22 +163,15 @@
         ctx.closePath();
         ctx.fill();
 
-        // Gloss highlight
-        const glossGrad = ctx.createRadialGradient(x - size*0.15, y - size*0.3, size*0.05, x - size*0.1, y - size*0.35, size*0.2);
-        glossGrad.addColorStop(0, 'rgba(255,255,255,0.7)');
-        glossGrad.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = glossGrad;
-        ctx.fill();
-
         ctx.lineWidth = 3;
         ctx.shadowColor = 'transparent';
-        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
         ctx.stroke();
       }
     };
   }
 
-  // Pipe class (only trunks) with more texture and shadow
+  // Pipe class (only trunks)
   class Pipe {
     constructor(x) {
       this.x = x;
@@ -201,57 +185,37 @@
       this.x -= 3;
     }
     draw() {
-      // Draw top trunk
+      // Draw top trunk (from top down)
       this.drawTrunk(this.x, 0, this.width, this.topHeight);
-      // Draw bottom trunk
+      // Draw bottom trunk (from gap bottom to ground)
       const bottomY = this.topHeight + this.gap;
       this.drawTrunk(this.x, bottomY, this.width, H - groundHeight - bottomY);
     }
     drawTrunk(x, y, width, height) {
-      // Base fill with wood texture gradient
-      const grad = ctx.createLinearGradient(x, y, x + width, y + height);
-      grad.addColorStop(0, '#7b5e2f');
-      grad.addColorStop(0.5, '#5c3a1a');
-      grad.addColorStop(1, '#432c10');
-      ctx.fillStyle = grad;
+      ctx.fillStyle = '#5c3a1a';
       ctx.fillRect(x, y, width, height);
 
-      // Shadow for depth
-      ctx.shadowColor = 'rgba(0,0,0,0.3)';
-      ctx.shadowBlur = 8;
-      ctx.fillRect(x, y, width * 0.15, height);
-
-      // Texture lines - horizontal curved lines
-      ctx.shadowBlur = 0;
       ctx.strokeStyle = '#4b2f13';
-      ctx.lineWidth = 1.2;
-      for(let i=0; i < height; i += 5){
-        ctx.beginPath();
-        const offset = (i % 10 < 5) ? 0 : 3;
-        ctx.moveTo(x, y + i + offset);
-        ctx.bezierCurveTo(x + width/3, y + i + 6 + offset, x + 2*width/3, y + i - 6 + offset, x + width, y + i + offset);
-        ctx.stroke();
-      }
-
-      // Bark cracks - vertical thin lines
-      ctx.strokeStyle = '#3a260c';
       ctx.lineWidth = 1.5;
-      for(let i=0; i < width; i += 6){
+
+      // texture - horizontal curved lines
+      for(let i=0; i < height; i += 6){
         ctx.beginPath();
-        const crackX = x + i + Math.sin(i*3 + y*0.5)*2;
-        ctx.moveTo(crackX, y);
-        ctx.lineTo(crackX, y + height);
+        const offset = (i % 12 < 6) ? 0 : 3;
+        ctx.moveTo(x, y + i + offset);
+        ctx.bezierCurveTo(x + width/3, y + i + 10 + offset, x + 2*width/3, y + i - 10 + offset, x + width, y + i + offset);
         ctx.stroke();
       }
 
-      // Outline
+      ctx.strokeStyle = '#3a260c';
       ctx.lineWidth = 3;
-      ctx.strokeStyle = '#362509';
       ctx.strokeRect(x, y, width, height);
     }
   }
 
-  // Clouds with gradient and smooth shape
+  // Background objects: mountains, clouds, ground grass
+
+  // Clouds
   class Cloud {
     constructor(x, y, scale, speed) {
       this.x = x;
@@ -264,5 +228,177 @@
     draw() {
       ctx.save();
       ctx.globalAlpha = this.alpha;
-      const grad = ctx.createRadialGradient(this.x + 40*this.scale, this.y, 20*this.scale, this.x + 40*this.scale, this.y, 70*this.scale);
-      grad.addColorStop(0, '
+      ctx.fillStyle = '#fff';
+      ctx.shadowColor = 'rgba(255,255,255,0.7)';
+      ctx.shadowBlur = 15;
+      ctx.beginPath();
+      let bX = this.x, bY = this.y, s = this.scale;
+      ctx.arc(bX, bY, 25 * s, 0, 2 * Math.PI);
+      ctx.arc(bX + 35 * s, bY - 10 * s, 30 * s, 0, 2 * Math.PI);
+      ctx.arc(bX + 70 * s, bY - 5 * s, 25 * s, 0, 2 * Math.PI);
+      ctx.arc(bX + 50 * s, bY + 10 * s, 27 * s, 0, 2 * Math.PI);
+      ctx.arc(bX + 85 * s, bY + 10 * s, 20 * s, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.restore();
+    }
+    update() {
+      this.x += this.speed;
+      if (this.speed > 0 && this.x - 100 * this.scale > W) this.x = -100 * this.scale;
+      else if (this.speed < 0 && this.x + 100 * this.scale < 0) this.x = W + 100 * this.scale;
+
+      this.alpha += this.alphaDir;
+      if (this.alpha > 1 || this.alpha < 0.4) this.alphaDir = -this.alphaDir;
+    }
+  }
+  const clouds = [
+    new Cloud(W * 0.1, H * 0.18, 1.3, 0.3),
+    new Cloud(W * 0.5, H * 0.15, 1.0, 0.22),
+    new Cloud(W * 0.8, H * 0.23, 1.5, 0.25),
+  ];
+
+  // Mountains
+  function drawMountains(time) {
+    ctx.fillStyle = '#556b2f';
+    const baseY = H - groundHeight;
+    const mountainWidth = W / 6;
+    for(let i = -1; i < 8; i++) {
+      let peakX = i * mountainWidth + (time / 30 % mountainWidth);
+      ctx.beginPath();
+      ctx.moveTo(peakX, baseY);
+      ctx.lineTo(peakX + mountainWidth / 2, baseY - 150 - 30 * Math.sin(i + time / 1000));
+      ctx.lineTo(peakX + mountainWidth, baseY);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // Grass
+  let grassPoints = [];
+  function initGrass() {
+    grassPoints = [];
+    for(let i=0; i<=W; i+=15){
+      grassPoints.push({
+        x: i,
+        baseY: H - groundHeight,
+        height: 10 + Math.random()*15,
+        offset: Math.random()*1000,
+      });
+    }
+  }
+  function drawGrass(time) {
+    ctx.strokeStyle = '#1b4b19';
+    ctx.lineWidth = 2;
+    for(let p of grassPoints){
+      let sway = Math.sin(time / 500 + p.offset) * 3;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.baseY);
+      ctx.lineTo(p.x + sway, p.baseY - p.height);
+      ctx.lineTo(p.x + sway * 0.6, p.baseY - p.height * 0.6);
+      ctx.stroke();
+    }
+  }
+
+  // Init game
+  function resetGame() {
+    bird = createBird();
+    pipes = [];
+    frameCount = 0;
+    score = 0;
+    gameOver = false;
+    scoreEl.textContent = 'Score: 0';
+    gameOverMessage.style.display = 'none';
+    initGrass();
+  }
+
+  // Input controls
+  window.addEventListener('keydown', e => {
+    if(e.code === 'Space' || e.code === 'ArrowUp') {
+      if(!gameOver) bird.jump();
+    }
+  });
+  window.addEventListener('touchstart', e => {
+    if(!gameOver) bird.jump();
+  });
+
+  restartBtn.addEventListener('click', () => {
+    resetGame();
+  });
+
+  // Collision detection
+  function collision() {
+    const b = bird;
+    const half = b.size / 2;
+    for(let p of pipes){
+      if (
+        b.x + half > p.x &&
+        b.x - half < p.x + p.width &&
+        (b.y - half < p.topHeight || b.y + half > p.topHeight + p.gap)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Main game loop
+  function gameLoop(time=0){
+    ctx.clearRect(0, 0, W, H);
+
+    // Draw background
+    drawMountains(time);
+    for(let c of clouds){
+      c.draw();
+      c.update();
+    }
+    drawGrass(time);
+
+    // Draw ground base
+    ctx.fillStyle = '#4a3b1f';
+    ctx.fillRect(0, H - groundHeight, W, groundHeight);
+
+    if(!gameOver){
+      frameCount++;
+
+      if(frameCount % 90 === 0) {
+        pipes.push(new Pipe(W));
+      }
+
+      // Update pipes and check if offscreen
+      for(let i = pipes.length - 1; i >= 0; i--){
+        pipes[i].update();
+        pipes[i].draw();
+
+        if(!pipes[i].passed && pipes[i].x + pipes[i].width < bird.x) {
+          score++;
+          pipes[i].passed = true;
+          scoreEl.textContent = 'Score: ' + score;
+        }
+
+        if(pipes[i].x + pipes[i].width < 0){
+          pipes.splice(i, 1);
+        }
+      }
+
+      bird.update();
+
+      if(collision()){
+        gameOver = true;
+      }
+    } else {
+      // Show game over message
+      gameOverMessage.style.display = 'block';
+    }
+
+    bird.draw();
+
+    requestAnimationFrame(gameLoop);
+  }
+
+  resetGame();
+  gameLoop();
+
+})();
+</script>
+
+</body>
+</html>
