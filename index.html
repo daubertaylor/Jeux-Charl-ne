@@ -7,7 +7,7 @@
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Baloo+2&display=swap');
   html, body {
-    margin: 0; padding: 0; height: 100%;
+    margin:0; padding:0; height:100%;
     background: linear-gradient(to top, #317d49 0%, #a0d8ef 90%);
     font-family: 'Baloo 2', cursive;
     overflow: hidden;
@@ -23,8 +23,7 @@
   }
   #score {
     position: fixed;
-    top: 15px;
-    left: 50%;
+    top: 20px; left: 50%;
     transform: translateX(-50%);
     font-size: 2.5rem;
     color: #ff4c62;
@@ -35,9 +34,9 @@
     position: fixed;
     top: 50%; left: 50%;
     transform: translate(-50%, -50%);
-    background: rgba(30,40,25,0.9);
+    background: rgba(30, 40, 25, 0.9);
     color: #f0f7e8;
-    padding: 1.8em 2.5em;
+    padding: 2em 2.5em;
     border-radius: 20px;
     text-align: center;
     font-size: 1.3rem;
@@ -46,11 +45,11 @@
     box-shadow: 0 0 20px #84c885;
   }
   #message button {
-    margin-top: 1em;
+    margin-top: 1.2em;
     background: #4caf50;
     border: none;
     border-radius: 12px;
-    padding: 0.8em 2em;
+    padding: 0.8em 2.2em;
     font-weight: bold;
     color: white;
     font-size: 1.2rem;
@@ -75,8 +74,12 @@
 (() => {
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
+  const scoreDiv = document.getElementById('score');
+  const messageDiv = document.getElementById('message');
+  const restartBtn = document.getElementById('restartBtn');
 
   let W, H;
+
   function resize() {
     W = window.innerWidth;
     H = window.innerHeight;
@@ -84,24 +87,24 @@
     canvas.height = H * devicePixelRatio;
     canvas.style.width = W + 'px';
     canvas.style.height = H + 'px';
-    ctx.setTransform(1,0,0,1,0,0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.scale(devicePixelRatio, devicePixelRatio);
   }
   resize();
   window.addEventListener('resize', resize);
 
-  // Variables jeu
+  // Game parameters
   const gravity = 0.6;
-  const jump = -10;
+  const jumpPower = -10;
   const obstacleWidth = 70;
-  const gap = 150;
+  const gapHeight = 150;
   const speed = 3;
   const heartRadius = 25;
 
-  // Cœur joueur
+  // Heart player
   const heart = {
-    x: W/4,
-    y: H/2,
+    x: W / 4,
+    y: H / 2,
     vy: 0,
     pulse: 0,
   };
@@ -111,83 +114,12 @@
   let score = 0;
   let running = true;
 
-  // Score & message DOM
-  const scoreDiv = document.getElementById('score');
-  const messageDiv = document.getElementById('message');
-  const restartBtn = document.getElementById('restartBtn');
-
-  restartBtn.onclick = () => {
-    obstacles = [];
-    frameCount = 0;
-    score = 0;
-    heart.y = H/2;
-    heart.vy = 0;
-    running = true;
-    messageDiv.style.display = 'none';
-    scoreDiv.textContent = '0';
-    addObstacle();
-    loop();
-  };
-
-  // Dessine cœur pulsant
-  function drawHeart(x, y, radius) {
-    ctx.save();
-    ctx.translate(x, y);
-    const pulseScale = 1 + 0.05 * Math.sin(heart.pulse);
-    ctx.scale(pulseScale, pulseScale);
-
-    ctx.beginPath();
-    const topCurveHeight = radius * 0.3;
-    ctx.moveTo(0, topCurveHeight);
-    ctx.bezierCurveTo(0, 0, -radius/2, 0, -radius/2, topCurveHeight);
-    ctx.bezierCurveTo(-radius/2, radius/2, 0, radius*0.75, 0, radius);
-    ctx.bezierCurveTo(0, radius*0.75, radius/2, radius/2, radius/2, topCurveHeight);
-    ctx.bezierCurveTo(radius/2, 0, 0, 0, 0, topCurveHeight);
-    ctx.closePath();
-
-    const grad = ctx.createRadialGradient(0, radius/2, radius*0.1, 0, radius/2, radius);
-    grad.addColorStop(0, '#ff4c62');
-    grad.addColorStop(1, '#a80020');
-    ctx.fillStyle = grad;
-
-    ctx.shadowColor = 'rgba(255, 76, 98, 0.9)';
-    ctx.shadowBlur = 15;
-
-    ctx.fill();
-    ctx.restore();
-  }
-
-  // Dessine arbre (tronc + feuilles)
-  function drawTree(x, y, height) {
-    ctx.save();
-    ctx.translate(x, y);
-
-    // Tronc
-    ctx.fillStyle = '#4a2e0f';
-    ctx.shadowColor = 'rgba(0,0,0,0.15)';
-    ctx.shadowBlur = 5;
-    ctx.fillRect(-10, 0, 20, height);
-
-    // Feuillage (3 cercles verts)
-    ctx.fillStyle = '#3a7d3c';
-    ctx.shadowColor = 'rgba(20,60,15,0.5)';
-    ctx.shadowBlur = 12;
-    const r = 30;
-    ctx.beginPath();
-    ctx.ellipse(0, -r*0.7, r, r*0.8, 0, 0, Math.PI*2);
-    ctx.ellipse(-r, -r*1.3, r, r, 0, 0, Math.PI*2);
-    ctx.ellipse(r, -r*1.3, r, r, 0, 0, Math.PI*2);
-    ctx.fill();
-
-    ctx.restore();
-  }
-
-  // Obstacle : deux arbres avec espace
+  // Obstacles class (trees)
   class Obstacle {
     constructor(x) {
       this.x = x;
-      this.topHeight = 80 + Math.random()*(H - gap - 160);
-      this.bottomHeight = H - this.topHeight - gap;
+      this.topHeight = 80 + Math.random() * (H - gapHeight - 160);
+      this.bottomHeight = H - this.topHeight - gapHeight;
     }
     update() {
       this.x -= speed;
@@ -201,9 +133,8 @@
       ctx.restore();
     }
     collides(cx, cy, cr) {
-      // Cercle vs rectangle collision (approx arbre tronc)
-      // Tronc rect top
-      if (cx + cr > this.x -10 && cx - cr < this.x + 10) {
+      // Collision with trunks approximated as rectangles
+      if (cx + cr > this.x - 10 && cx - cr < this.x + 10) {
         if (cy - cr < this.topHeight) return true;
         if (cy + cr > H - this.bottomHeight) return true;
       }
@@ -212,18 +143,71 @@
   }
 
   function addObstacle() {
-    const lastX = obstacles.length ? obstacles[obstacles.length -1].x : W + 150;
+    const lastX = obstacles.length ? obstacles[obstacles.length - 1].x : W + 150;
     obstacles.push(new Obstacle(lastX + 250));
   }
 
-  // Nuages
+  // Draw heart shape, pulsating
+  function drawHeart(x, y, radius) {
+    ctx.save();
+    ctx.translate(x, y);
+    const scalePulse = 1 + 0.05 * Math.sin(heart.pulse);
+    ctx.scale(scalePulse, scalePulse);
+
+    ctx.beginPath();
+    const topCurveHeight = radius * 0.3;
+    ctx.moveTo(0, topCurveHeight);
+    ctx.bezierCurveTo(0, 0, -radius / 2, 0, -radius / 2, topCurveHeight);
+    ctx.bezierCurveTo(-radius / 2, radius / 2, 0, radius * 0.75, 0, radius);
+    ctx.bezierCurveTo(0, radius * 0.75, radius / 2, radius / 2, radius / 2, topCurveHeight);
+    ctx.bezierCurveTo(radius / 2, 0, 0, 0, 0, topCurveHeight);
+    ctx.closePath();
+
+    const grad = ctx.createRadialGradient(0, radius / 2, radius * 0.1, 0, radius / 2, radius);
+    grad.addColorStop(0, '#ff4c62');
+    grad.addColorStop(1, '#a80020');
+    ctx.fillStyle = grad;
+
+    ctx.shadowColor = 'rgba(255, 76, 98, 0.9)';
+    ctx.shadowBlur = 15;
+
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Draw stylized tree (trunk + foliage)
+  function drawTree(x, y, height) {
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Trunk
+    ctx.fillStyle = '#4a2e0f';
+    ctx.shadowColor = 'rgba(0,0,0,0.15)';
+    ctx.shadowBlur = 5;
+    ctx.fillRect(-10, 0, 20, height);
+
+    // Foliage: 3 circles
+    ctx.fillStyle = '#3a7d3c';
+    ctx.shadowColor = 'rgba(20,60,15,0.5)';
+    ctx.shadowBlur = 12;
+    const r = 30;
+    ctx.beginPath();
+    ctx.ellipse(0, -r * 0.7, r, r * 0.8, 0, 0, Math.PI * 2);
+    ctx.ellipse(-r, -r * 1.3, r, r, 0, 0, Math.PI * 2);
+    ctx.ellipse(r, -r * 1.3, r, r, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // Clouds data
   const clouds = [];
-  for(let i=0; i<7; i++) {
+  for (let i = 0; i < 7; i++) {
     clouds.push({
-      x: Math.random()*W,
-      y: Math.random()*H*0.5,
-      size: 40 + Math.random()*60,
-      speed: 0.3 + Math.random()*0.5,
+      x: Math.random() * W,
+      y: Math.random() * H * 0.5,
+      size: 40 + Math.random() * 60,
+      speed: 0.3 + Math.random() * 0.5,
     });
   }
   function drawCloud(x, y, size) {
@@ -233,44 +217,5 @@
     ctx.shadowColor = 'rgba(200,200,210,0.8)';
     ctx.shadowBlur = 8;
     ctx.beginPath();
-    ctx.ellipse(0, 0, size*0.6, size*0.4, 0, 0, Math.PI*2);
-    ctx.ellipse(size*0.5, -size*0.1, size*0.55, size*0.45, 0, 0, Math.PI*2);
-    ctx.ellipse(size*0.9, size*0.1, size*0.4, size*0.3, 0, 0, Math.PI*2);
-    ctx.fill();
-    ctx.restore();
-  }
-
-  // Contrôle simple : clic ou espace = saut
-  function jumpAction() {
-    if (!running) return;
-    heart.vy = jump;
-  }
-  window.addEventListener('keydown', e => {
-    if (e.code === 'Space') {
-      e.preventDefault();
-      jumpAction();
-    }
-  });
-  window.addEventListener('mousedown', e => {
-    jumpAction();
-  });
-  window.addEventListener('touchstart', e => {
-    e.preventDefault();
-    jumpAction();
-  }, {passive:false});
-
-  // Fin de partie
-  function gameOver() {
-    running = false;
-    messageDiv.style.display = 'block';
-  }
-
-  // Boucle jeu
-  function loop() {
-    if (!running) return;
-
-    frameCount++;
-    ctx.clearRect(0, 0, W, H);
-
-    // Fond nuages
-    for (let c
+    ctx.ellipse(0, 0, size * 0.6, size * 0.4, 0, 0, Math.PI * 2);
+    ctx.ellipse(size * 0.5, -size * 0.1, size * 0.55, size * 0.45, 0, 0, Math.PI * 2
