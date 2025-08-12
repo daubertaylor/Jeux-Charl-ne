@@ -3,22 +3,22 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Flappy Heart Réaliste</title>
+<title>Flappy Heart Cartoon Amélioré</title>
 <style>
   html, body {
     margin: 0; padding: 0; overflow: hidden; height: 100%;
     background: linear-gradient(to top, #87ceeb, #cfe8ff);
-    font-family: Arial, sans-serif;
+    font-family: 'Comic Sans MS', cursive, sans-serif;
     user-select: none;
   }
   #score {
     position: fixed;
     top: 20px; left: 50%;
     transform: translateX(-50%);
-    font-size: 28px;
+    font-size: 32px;
     font-weight: bold;
-    color: #222;
-    text-shadow: 1px 1px 5px #fff;
+    color: #2c3e50;
+    text-shadow: 2px 2px 5px #ecf0f1;
     z-index: 10;
   }
   #gameOverMessage {
@@ -27,29 +27,30 @@
     transform: translate(-50%, -50%);
     background: rgba(255 255 255 / 0.95);
     padding: 30px 40px;
-    border-radius: 20px;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-    font-size: 24px;
-    color: #d63031;
+    border-radius: 25px;
+    box-shadow: 0 10px 35px rgba(0,0,0,0.4);
+    font-size: 26px;
+    color: #e74c3c;
     font-weight: 700;
     text-align: center;
-    max-width: 80vw;
+    max-width: 90vw;
     z-index: 20;
     display: none;
   }
   #restartBtn {
     margin-top: 20px;
-    padding: 12px 28px;
-    font-size: 20px;
+    padding: 14px 32px;
+    font-size: 22px;
     font-weight: 700;
-    background: #d63031;
+    background: #e74c3c;
     color: white;
     border: none;
-    border-radius: 15px;
+    border-radius: 18px;
     cursor: pointer;
+    box-shadow: 0 6px 15px rgba(231, 76, 60, 0.7);
   }
   #restartBtn:hover {
-    background: #b82727;
+    background: #c0392b;
   }
   canvas {
     display: block;
@@ -93,20 +94,22 @@
   let bird, pipes, frameCount, score, gameOver;
 
   // CONSTANTS
-  const gravity = 0.7;
-  const jumpForce = -12;
+  const gravity = 0.5;
+  const jumpForce = -11;
   const pipeWidth = 80;
   const pipeGap = H * 0.35;
   const groundHeight = H * 0.14;
   const pipeSpeed = 5;
 
-  // Bird object (heart)
+  // Animated Heart (bird) with breathing scale effect
   function createBird() {
     return {
       x: W * 0.25,
       y: H / 2,
-      size: 46,
+      baseSize: 52,
+      size: 52,
       velocity: 0,
+      frame: 0,
       update() {
         this.velocity += gravity;
         this.y += this.velocity;
@@ -121,6 +124,10 @@
           this.velocity = 0;
           gameOver = true;
         }
+
+        // Breathing animation
+        this.frame += 0.07;
+        this.size = this.baseSize + 4 * Math.sin(this.frame);
       },
       jump() {
         this.velocity = jumpForce;
@@ -128,44 +135,49 @@
       draw() {
         const x = this.x;
         const y = this.y;
-        const size = this.size;
+        const s = this.size;
 
-        const grad = ctx.createRadialGradient(x, y, size*0.1, x, y, size*0.55);
-        grad.addColorStop(0, '#ff2a48');
-        grad.addColorStop(0.5, '#b21028');
-        grad.addColorStop(1, '#800018');
+        // Heart shape path - cartoon style
+        ctx.save();
 
-        ctx.shadowColor = 'rgba(255,40,70,0.9)';
-        ctx.shadowBlur = size*0.3;
+        // Shadow glow
+        ctx.shadowColor = 'rgba(255, 0, 50, 0.9)';
+        ctx.shadowBlur = 18;
 
+        // Create gradient fill
+        const grad = ctx.createRadialGradient(x, y, s*0.1, x, y, s*0.6);
+        grad.addColorStop(0, '#ff416c');
+        grad.addColorStop(0.6, '#e60039');
+        grad.addColorStop(1, '#930026');
         ctx.fillStyle = grad;
+
         ctx.beginPath();
+        const topCurveHeight = s * 0.3;
 
-        // Top left circle
-        ctx.arc(x - size*0.25, y - size*0.15, size*0.25, Math.PI, 0, false);
-        // Top right circle
-        ctx.arc(x + size*0.25, y - size*0.15, size*0.25, Math.PI, 0, false);
-
-        // Bottom point
-        ctx.lineTo(x, y + size*0.6);
+        ctx.moveTo(x, y + s * 0.25);
+        ctx.bezierCurveTo(x - s * 0.5, y - topCurveHeight, x - s * 0.7, y + s * 0.6, x, y + s * 0.9);
+        ctx.bezierCurveTo(x + s * 0.7, y + s * 0.6, x + s * 0.5, y - topCurveHeight, x, y + s * 0.25);
         ctx.closePath();
         ctx.fill();
 
+        // Heart outline
         ctx.shadowColor = 'transparent';
         ctx.lineWidth = 3;
-        ctx.strokeStyle = 'rgba(255,150,150,0.9)';
+        ctx.strokeStyle = '#ff94a8';
         ctx.stroke();
+
+        ctx.restore();
       }
     };
   }
 
-  // Pipe class (simplified trunks)
+  // Pipe class - cartoon trunks with simple leaf top
   class Pipe {
     constructor(x) {
       this.x = x;
       this.width = pipeWidth;
       this.gap = pipeGap;
-      const minHeight = 90;
+      const minHeight = 110;
       this.topHeight = minHeight + Math.random() * (H - groundHeight - this.gap - minHeight);
       this.passed = false;
     }
@@ -173,202 +185,169 @@
       this.x -= pipeSpeed;
     }
     draw() {
-      // Draw pipe trunks as rectangles with simple brown gradient
+      // Draw pipe trunks - brown with wood texture lines
       const grad = ctx.createLinearGradient(this.x, 0, this.x + this.width, 0);
-      grad.addColorStop(0, '#5d3a00');
-      grad.addColorStop(1, '#b27300');
+      grad.addColorStop(0, '#654321');
+      grad.addColorStop(1, '#a97448');
 
+      // Top trunk
       ctx.fillStyle = grad;
-
-      // Top pipe
       ctx.fillRect(this.x, 0, this.width, this.topHeight);
 
-      // Bottom pipe
+      // Bottom trunk
       ctx.fillRect(this.x, this.topHeight + this.gap, this.width, H - groundHeight - (this.topHeight + this.gap));
 
-      // Outline
-      ctx.strokeStyle = '#422900';
-      ctx.lineWidth = 4;
+      // Wood texture lines
+      ctx.strokeStyle = '#4b3200';
+      ctx.lineWidth = 2;
+      const lineCount = 8;
+      for(let i=1; i <= lineCount; i++) {
+        let y = (this.topHeight / lineCount) * i;
+        ctx.beginPath();
+        ctx.moveTo(this.x, y);
+        ctx.lineTo(this.x + this.width, y + (i % 2 ? 3 : -3));
+        ctx.stroke();
+
+        y = this.topHeight + this.gap + ((H - groundHeight - (this.topHeight + this.gap)) / lineCount) * i;
+        ctx.beginPath();
+        ctx.moveTo(this.x, y);
+        ctx.lineTo(this.x + this.width, y + (i % 2 ? 3 : -3));
+        ctx.stroke();
+      }
+
+      // Leaf tops (cartoon simple)
+      const leafHeight = 25;
+      ctx.fillStyle = '#2ecc71';
+      ctx.beginPath();
+      ctx.moveTo(this.x - 10, this.topHeight);
+      ctx.lineTo(this.x + this.width / 2, this.topHeight - leafHeight);
+      ctx.lineTo(this.x + this.width + 10, this.topHeight);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(this.x - 10, this.topHeight + this.gap + (H - groundHeight - (this.topHeight + this.gap)));
+      ctx.lineTo(this.x + this.width / 2, this.topHeight + this.gap + (H - groundHeight - (this.topHeight + this.gap)) - leafHeight);
+      ctx.lineTo(this.x + this.width + 10, this.topHeight + this.gap + (H - groundHeight - (this.topHeight + this.gap)));
+      ctx.closePath();
+      ctx.fill();
+
+      // Outline trunks
+      ctx.strokeStyle = '#2d1f00';
+      ctx.lineWidth = 3;
       ctx.strokeRect(this.x, 0, this.width, this.topHeight);
       ctx.strokeRect(this.x, this.topHeight + this.gap, this.width, H - groundHeight - (this.topHeight + this.gap));
     }
   }
 
-  // Ground
-  function drawGround() {
-    const grad = ctx.createLinearGradient(0, H - groundHeight, 0, H);
-    grad.addColorStop(0, '#556b2f');
-    grad.addColorStop(1, '#4a5d22');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, H - groundHeight, W, groundHeight);
+  // Background with trees, houses and road
+  function drawBackground() {
+    // Sky already done in body bg, here add details
 
-    // Grass blades simple pattern
-    ctx.fillStyle = '#6b8e23';
-    for(let i=0; i<W; i+=15){
+    // Ground
+    const groundY = H - groundHeight;
+    const groundGrad = ctx.createLinearGradient(0, groundY, 0, H);
+    groundGrad.addColorStop(0, '#40601b');
+    groundGrad.addColorStop(1, '#2a3b10');
+    ctx.fillStyle = groundGrad;
+    ctx.fillRect(0, groundY, W, groundHeight);
+
+    // Draw road
+    const roadY = groundY + groundHeight * 0.5;
+    const roadHeight = groundHeight * 0.35;
+    ctx.fillStyle = '#444';
+    ctx.fillRect(0, roadY, W, roadHeight);
+
+    // Road lines
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 4;
+    ctx.setLineDash([30, 25]);
+    ctx.beginPath();
+    ctx.moveTo(0, roadY + roadHeight / 2);
+    ctx.lineTo(W, roadY + roadHeight / 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Trees - cartoon simple trees spaced horizontally with small sway
+    const treeCount = 9;
+    const treeSpacing = W / treeCount;
+    const swayAmplitude = 4;
+    const swaySpeed = 0.005;
+
+    for(let i=0; i<treeCount; i++) {
+      const baseX = i * treeSpacing + treeSpacing * 0.5;
+      const sway = Math.sin(frameCount * swaySpeed + i) * swayAmplitude;
+
+      // Trunk
+      ctx.fillStyle = '#5d3a00';
+      ctx.fillRect(baseX + sway, groundY - 80, 12, 80);
+
+      // Leaves (3 stacked circles)
+      ctx.fillStyle = '#27ae60';
       ctx.beginPath();
-      ctx.moveTo(i, H - groundHeight);
-      ctx.lineTo(i+5, H - groundHeight - 20);
-      ctx.lineTo(i+10, H - groundHeight);
+      ctx.ellipse(baseX + sway + 6, groundY - 95, 20, 25, 0, 0, Math.PI * 2);
+      ctx.ellipse(baseX + sway - 10, groundY - 80, 18, 20, 0, 0, Math.PI * 2);
+      ctx.ellipse(baseX + sway + 20, groundY - 80, 18, 20, 0, 0, Math.PI * 2);
       ctx.fill();
-    }
-  }
 
-  // Clouds - simple white circles groups, moves slowly
-  class Cloud {
-    constructor() {
-      this.x = Math.random() * W;
-      this.y = Math.random() * H * 0.3 + 20;
-      this.size = 50 + Math.random() * 40;
-      this.speed = 0.3 + Math.random() * 0.4;
-      this.opacity = 0.4 + Math.random() * 0.3;
-    }
-    update() {
-      this.x += this.speed;
-      if(this.x - this.size > W) this.x = -this.size;
-    }
-    draw() {
-      ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
+      ctx.strokeStyle = '#1e6b1e';
+      ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(this.x, this.y, this.size * 0.4, Math.PI * 0.5, Math.PI * 1.5);
-      ctx.arc(this.x + this.size * 0.35, this.y - this.size * 0.2, this.size * 0.35, Math.PI, 0);
-      ctx.arc(this.x + this.size * 0.75, this.y - this.size * 0.1, this.size * 0.3, Math.PI, 0);
-      ctx.arc(this.x + this.size * 1.1, this.y + this.size * 0.2, this.size * 0.4, 0, Math.PI * 1.5);
-      ctx.arc(this.x + this.size * 0.5, this.y + this.size * 0.3, this.size * 0.55, 0, Math.PI * 2);
+      ctx.ellipse(baseX + sway + 6, groundY - 95, 20, 25, 0, 0, Math.PI * 2);
+      ctx.ellipse(baseX + sway - 10, groundY - 80, 18, 20, 0, 0, Math.PI * 2);
+      ctx.ellipse(baseX + sway + 20, groundY - 80, 18, 20, 0, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Houses - simple cartoon houses spaced in front of trees
+    const houseCount = 5;
+    for(let i=0; i<houseCount; i++) {
+      const baseX = (i + 0.3) * W / houseCount;
+      const baseY = groundY - 40;
+      // House base
+      ctx.fillStyle = '#e74c3c';
+      ctx.fillRect(baseX, baseY, 70, 50);
+
+      // Roof
+      ctx.fillStyle = '#c0392b';
+      ctx.beginPath();
+      ctx.moveTo(baseX - 10, baseY);
+      ctx.lineTo(baseX + 35, baseY - 40);
+      ctx.lineTo(baseX + 80, baseY);
       ctx.closePath();
       ctx.fill();
-    }
-  }
 
-  let clouds = [];
-  function initClouds() {
-    clouds = [];
-    for(let i=0; i<12; i++) clouds.push(new Cloud());
-  }
+      // Door
+      ctx.fillStyle = '#7f3d2a';
+      ctx.fillRect(baseX + 28, baseY + 25, 14, 25);
 
-  function initGame() {
-    bird = createBird();
-    pipes = [];
-    frameCount = 0;
-    score = 0;
-    gameOver = false;
-    initClouds();
-    scoreEl.textContent = 'Score: 0';
-    gameOverMessage.style.display = 'none';
+      // Windows
+      ctx.fillStyle = '#f9e79f';
+      ctx.fillRect(baseX + 10, baseY + 15, 18, 18);
+      ctx.fillRect(baseX + 42, baseY + 15, 18, 18);
 
-    // Add initial pipes spaced apart
-    for(let i=0; i<4; i++) {
-      pipes.push(new Pipe(W + i * (pipeWidth + 280)));
-    }
-  }
-
-  function checkCollision(bird, pipe) {
-    // Bird bounds
-    const bx1 = bird.x - bird.size/2;
-    const bx2 = bird.x + bird.size/2;
-    const by1 = bird.y - bird.size/2;
-    const by2 = bird.y + bird.size/2;
-
-    // Top pipe bounds
-    const px1 = pipe.x;
-    const px2 = pipe.x + pipe.width;
-    const py1_top = 0;
-    const py2_top = pipe.topHeight;
-
-    // Bottom pipe bounds
-    const py1_bot = pipe.topHeight + pipe.gap;
-    const py2_bot = H - groundHeight;
-
-    // Check overlap with top pipe
-    if(bx2 > px1 && bx1 < px2 && by1 < py2_top) return true;
-    // Check overlap with bottom pipe
-    if(bx2 > px1 && bx1 < px2 && by2 > py1_bot) return true;
-
-    return false;
-  }
-
-  function update() {
-    if(gameOver) return;
-
-    bird.update();
-
-    pipes.forEach(pipe => pipe.update());
-
-    // Remove pipes that left screen and add new ones
-    if(pipes.length > 0 && pipes[0].x + pipes[0].width < 0) {
-      pipes.shift();
-      const lastX = pipes.length > 0 ? pipes[pipes.length -1].x : W;
-      pipes.push(new Pipe(lastX + pipeWidth + 280));
+      // Window frames
+      ctx.strokeStyle = '#7f3d2a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(baseX + 10, baseY + 15, 18, 18);
+      ctx.strokeRect(baseX + 42, baseY + 15, 18, 18);
+      ctx.beginPath();
+      ctx.moveTo(baseX + 19, baseY + 15);
+      ctx.lineTo(baseX + 19, baseY + 33);
+      ctx.moveTo(baseX + 10, baseY + 24);
+      ctx.lineTo(baseX + 28, baseY + 24);
+      ctx.moveTo(baseX + 51, baseY + 15);
+      ctx.lineTo(baseX + 51, baseY + 33);
+      ctx.moveTo(baseX + 42, baseY + 24);
+      ctx.lineTo(baseX + 60, baseY + 24);
+      ctx.stroke();
     }
 
-    // Check collisions
-    pipes.forEach(pipe => {
-      if(!pipe.passed && pipe.x + pipe.width < bird.x) {
-        pipe.passed = true;
-        score++;
-        scoreEl.textContent = `Score: ${score}`;
-      }
-      if(checkCollision(bird, pipe)) {
-        gameOver = true;
-      }
-    });
-
-    clouds.forEach(c => c.update());
-
-    if(gameOver) {
-      gameOverMessage.style.display = 'block';
-    }
-  }
-
-  function draw() {
-    // Clear
-    ctx.clearRect(0, 0, W, H);
-
-    // Sky gradient (already body background but redraw for safety)
-    const skyGrad = ctx.createLinearGradient(0,0,0,H);
-    skyGrad.addColorStop(0, '#87ceeb');
-    skyGrad.addColorStop(1, '#cfe8ff');
-    ctx.fillStyle = skyGrad;
-    ctx.fillRect(0, 0, W, H);
-
-    // Draw clouds
-    clouds.forEach(c => c.draw());
-
-    // Draw pipes
-    pipes.forEach(p => p.draw());
-
-    // Draw ground
-    drawGround();
-
-    // Draw bird
-    bird.draw();
-  }
-
-  function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
-  }
-
-  window.addEventListener('keydown', e => {
-    if(e.code === 'Space' || e.code === 'ArrowUp') {
-      if(!gameOver) bird.jump();
-      else {
-        // ignore key while gameOver
-      }
-    }
-  });
-  window.addEventListener('mousedown', () => {
-    if(!gameOver) bird.jump();
-  });
-
-  restartBtn.addEventListener('click', () => {
-    initGame();
-  });
-
-  initGame();
-  loop();
-})();
-</script>
-
-</body>
-</html>
+    // Small cars on road moving left to right (cartoon)
+    const carWidth = 60;
+    const carHeight = 30;
+    const carY = roadY + roadHeight/2 + 5;
+    const carColors = ['#3498db', '#e67e22', '#9b59b6', '#1abc9c'];
+    for(let i=0; i<3; i++) {
+      const speed = 2 + i * 0.7;
+      const offset = (frameCount * speed + i * 200)
