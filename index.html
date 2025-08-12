@@ -1,412 +1,280 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Flappy Heart - Stable & Amélioré</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Flappy Heart Cartoon</title>
 <style>
-  :root{--accent:#d63031}
-  html,body{height:100%;margin:0;background:linear-gradient(#bfe9ff,#eaf8ff);font-family:Inter, Arial, sans-serif;overflow:hidden}
-  canvas{position:fixed;left:0;top:0;width:100vw;height:100vh;display:block;z-index:1}
-  #score{position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:10;font-weight:700;color:#1f2b2f;background:rgba(255,255,255,0.6);padding:6px 12px;border-radius:10px}
-  #best{position:fixed;left:12px;top:12px;z-index:10;font-size:13px;color:#233}
-  #controls{position:fixed;right:12px;top:12px;z-index:10}
-  #gameOver{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:20;background:rgba(255,255,255,0.95);padding:22px;border-radius:12px;display:none;text-align:center}
-  #restart{margin-top:12px;padding:10px 18px;background:var(--accent);color:#fff;border:none;border-radius:10px;cursor:pointer}
-  @media (max-width:420px){#score{font-size:16px}}
+  html, body {
+    margin: 0; padding: 0; overflow: hidden; height: 100%;
+    background: linear-gradient(to top, #87ceeb 0%, #a0d8f7 70%, #ffffff 100%);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  }
+  canvas {
+    display: block;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: transparent;
+  }
+  #score {
+    position: fixed;
+    top: 20px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 28px;
+    font-weight: bold;
+    color: #2c3e50;
+    text-shadow: 1px 1px 3px #fff;
+    user-select: none;
+    z-index: 10;
+  }
+  #gameOverMessage {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255 255 255 / 0.95);
+    padding: 30px 40px;
+    border-radius: 20px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+    font-size: 24px;
+    color: #d63031;
+    font-weight: 700;
+    text-align: center;
+    max-width: 80vw;
+    user-select: none;
+    z-index: 20;
+    display: none;
+  }
+  #restartBtn {
+    margin-top: 20px;
+    padding: 12px 28px;
+    font-size: 20px;
+    font-weight: 700;
+    background: #d63031;
+    color: white;
+    border: none;
+    border-radius: 15px;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(214, 48, 49, 0.8);
+  }
+  #restartBtn:hover {
+    background: #b82727;
+  }
 </style>
 </head>
 <body>
 
-<canvas id="canvas"></canvas>
 <div id="score">Score: 0</div>
-<div id="best">Meilleur: 0</div>
-<div id="controls"><label><input id="soundToggle" type="checkbox" checked> Sons</label></div>
 
-<div id="gameOver">
-  <div style="font-weight:800;color:var(--accent);font-size:18px">Comme c’est pas grave mon amour,<br>chaque essai te rapproche plus près du ciel.</div>
-  <button id="restart">Rejouer</button>
+<div id="gameOverMessage">
+  <div>Comme c’est pas grave mon amour,<br>chaque essai te rapproche plus près du ciel.</div>
+  <button id="restartBtn">Rejouer</button>
 </div>
 
+<canvas id="gameCanvas"></canvas>
+
 <script>
-/* ---------- SIMPLE, STABLE FLAPPY HEART (CORRIGÉ) ---------- */
-/* Principes :
-   - calculer toutes les tailles dans resize()
-   - n'exécuter qu'une seule boucle requestAnimationFrame active
-   - init/reset propres
-   - collisions stables
-   - audio créé à la première interaction
-*/
+(() => {
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const scoreEl = document.getElementById('score');
+  const gameOverMessage = document.getElementById('gameOverMessage');
+  const restartBtn = document.getElementById('restartBtn');
 
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-const scoreEl = document.getElementById('score');
-const bestEl = document.getElementById('best');
-const gameOverBox = document.getElementById('gameOver');
-const restartBtn = document.getElementById('restart');
-const soundToggle = document.getElementById('soundToggle');
-
-let W = innerWidth, H = innerHeight;
-function resize() {
-  W = innerWidth; H = innerHeight;
-  canvas.width = W; canvas.height = H;
-  recalc(); // recalcule tailles dépendantes
-}
-addEventListener('resize', resize, {passive:true});
-
-// CONFIG (ratios uniquement)
-const R = {
-  groundRatio: 0.12,
-  pipeWidthRatio: 0.12,
-  pipeGapRatio: 0.34,
-  basePipeSpeed: 3.2,
-  spawnIntervalFrames: 95
-};
-
-// Derived (will be set in recalc)
-let groundH, pipeWidth, pipeGap, pipeSpeed, spawnFrames;
-
-// Game state
-let player, trunks, clouds, mountains, houses, cars, birdsBG;
-let frame = 0;
-let score = 0;
-let best = parseInt(localStorage.getItem('flappy_heart_best') || '0', 10) || 0;
-bestEl.textContent = 'Meilleur: ' + best;
-let running = false;
-let animationId = null;
-let lastTime = 0;
-let speedMultiplier = 1;
-
-// Audio (WebAudio simple)
-let audioCtx = null;
-function ensureAudio(){ if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
-function playJump(){ if(!soundToggle.checked) return; ensureAudio(); const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.type='sine'; o.frequency.value = 420; g.gain.value = 0.0001; o.connect(g); g.connect(audioCtx.destination); o.start(); g.gain.exponentialRampToValueAtTime(0.12, audioCtx.currentTime+0.02); g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime+0.2); o.stop(audioCtx.currentTime+0.21); }
-function playPoint(){ if(!soundToggle.checked) return; ensureAudio(); const o = audioCtx.createOscillator(), g = audioCtx.createGain(); o.type='triangle'; o.frequency.value = 720; g.gain.value = 0.0001; o.connect(g); g.connect(audioCtx.destination); o.start(); g.gain.exponentialRampToValueAtTime(0.12, audioCtx.currentTime+0.01); g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime+0.12); o.stop(audioCtx.currentTime+0.13); }
-
-// recalc derived sizes
-function recalc(){
-  groundH = Math.max(48, H * R.groundRatio);
-  pipeWidth = Math.max(42, W * R.pipeWidthRatio);
-  pipeGap = Math.max(110, H * R.pipeGapRatio * Math.max(0.9, 1 - (speedMultiplier-1)*0.05));
-  pipeSpeed = R.basePipeSpeed * speedMultiplier;
-  spawnFrames = Math.max(40, R.spawnIntervalFrames - Math.floor((speedMultiplier-1)*6));
-}
-
-// Utility: draw rounded rect
-CanvasRenderingContext2D.prototype.roundRectPath = function(x,y,w,h,r=8){
-  this.beginPath();
-  this.moveTo(x+r,y);
-  this.arcTo(x+w,y,x+w,y+h,r);
-  this.arcTo(x+w,y+h,x,y+h,r);
-  this.arcTo(x,y+h,x,y,r);
-  this.arcTo(x,y,x+w,y,r);
-  this.closePath();
-};
-
-// Background elements initializers
-function initBackground(){
-  // clouds
-  clouds = [];
-  for(let i=0;i<6;i++) clouds.push({x:Math.random()*W, y:20+Math.random()*H*0.25, s:0.6+Math.random()*0.9, speed:0.1+Math.random()*0.3, alpha:0.5+Math.random()*0.5, aDir:(Math.random()>0.5?1:-1)});
-  // mountains
-  mountains = [];
-  const mcount = Math.max(3, Math.floor(W/220));
-  for(let i=0;i<mcount;i++){ mountains.push({x:i*(W/mcount)-60, w: W/mcount+120, h:120+Math.random()*120}); }
-  // houses (mid-ground)
-  houses = [];
-  const houseY = H - groundH - 6;
-  for(let i=0;i<Math.floor(W/160)+2;i++){
-    const w = 56 + Math.random()*48;
-    const h = 42 + Math.random()*46;
-    houses.push({x: i*160 + Math.random()*40 - 20, y: houseY, w, h, body: ['#ffd7d7','#ffdca6','#d7f1c7','#d3eaff'][i%4], roof: ['#c43','#a64','#3a7','#446'][i%4], smokePhase: Math.random()*6});
+  let W, H;
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W;
+    canvas.height = H;
   }
-  // cars
-  cars = [];
-  for(let i=0;i<Math.floor(W/300)+1;i++){
-    cars.push({x:Math.random()*W,y:H-groundH+18,dir:Math.random()>0.5?1:-1,color:['#ff6b6b','#ffd66b','#76d6a3','#70a7ff'][i%4],speed:0.7+Math.random()*0.9});
-  }
-  // birds
-  birdsBG = [];
-  for(let i=0;i<6;i++) birdsBG.push({x:Math.random()*W,y:30+Math.random()*H*0.2,speed:0.8+Math.random()*1.2,phase:Math.random()*6});
-}
+  resize();
+  window.addEventListener('resize', resize);
 
-// Trunk class
-class Trunk {
-  constructor(x){
-    this.x = x;
-    this.w = pipeWidth;
-    this.gap = pipeGap;
-    const minTop = 60;
-    const maxTop = Math.max(minTop, H - groundH - this.gap - 80);
-    this.topH = minTop + Math.random()*(maxTop - minTop);
-    this.passed = false;
-  }
-  update(){
-    this.x -= pipeSpeed;
-  }
-  draw(){
-    drawTrunk(this.x, 0, this.w, this.topH, true);
-    const bottomY = this.topH + this.gap;
-    drawTrunk(this.x, bottomY, this.w, H - groundH - bottomY, false);
-  }
-}
+  // GAME VARIABLES
+  let bird, pipes, frameCount, score, gameOver;
 
-// draw trunk helper (improved wood)
-function drawTrunk(x,y,w,h,isTop){
-  // wood gradient
-  const g = ctx.createLinearGradient(x, y, x+w, y+h || y+1);
-  g.addColorStop(0,'#8b5f34'); g.addColorStop(0.5,'#6b4226'); g.addColorStop(1,'#4a2f12');
-  ctx.fillStyle = g;
-  ctx.fillRect(x,y,w,h);
+  // CONSTANTS
+  const gravity = 0.7;
+  const jumpForce = -12;
+  const pipeWidth = W * 0.12;
+  const pipeGap = H * 0.28;  // un peu plus serré = plus dur
+  const groundHeight = H * 0.12;
+  const pipeSpeed = 4;  // un peu plus rapide = plus dur
 
-  // inner shade left
-  ctx.fillStyle = 'rgba(0,0,0,0.06)';
-  ctx.fillRect(x + w*0.02, y, w*0.13, h);
+  // Bird object (le cœur)
+  function createBird() {
+    return {
+      x: W * 0.25,
+      y: H / 2,
+      size: 45,
+      velocity: 0,
+      update() {
+        this.velocity += gravity;
+        this.y += this.velocity;
 
-  // rings
-  ctx.strokeStyle = 'rgba(60,40,18,0.9)'; ctx.lineWidth = 1;
-  const spacing = 18;
-  for(let yy = y + spacing/2; yy < y + h; yy += spacing){
-    ctx.beginPath();
-    ctx.ellipse(x + w/2, yy, Math.max(w/2 - 6, 6), 4, 0, 0, Math.PI*2);
-    ctx.stroke();
+        if(this.y + this.size/2 > H - groundHeight) {
+          this.y = H - groundHeight - this.size/2;
+          this.velocity = 0;
+          gameOver = true;
+        }
+        if(this.y - this.size/2 < 0) {
+          this.y = this.size/2;
+          this.velocity = 0;
+          gameOver = true;
+        }
+      },
+      jump() {
+        this.velocity = jumpForce;
+      },
+      draw() {
+        const x = this.x;
+        const y = this.y;
+        const size = this.size;
+        const topCurveHeight = size * 0.3;
+
+        // Ombre portée
+        ctx.shadowColor = 'rgba(214,48,49,0.6)';
+        ctx.shadowBlur = size * 0.15;
+
+        // Dégradé rouge pour cœur
+        const grad = ctx.createLinearGradient(x - size/2, y, x + size/2, y + size);
+        grad.addColorStop(0, '#e63946');
+        grad.addColorStop(0.5, '#d62828');
+        grad.addColorStop(1, '#9b1b1b');
+        ctx.fillStyle = grad;
+
+        ctx.beginPath();
+        ctx.moveTo(x, y + topCurveHeight);
+        ctx.bezierCurveTo(x, y,
+          x - size / 2, y,
+          x - size / 2, y + topCurveHeight);
+        ctx.bezierCurveTo(x - size / 2, y + (size + topCurveHeight) / 2,
+          x, y + (size + topCurveHeight) / 1.2,
+          x, y + size);
+        ctx.bezierCurveTo(x, y + (size + topCurveHeight) / 1.2,
+          x + size / 2, y + (size + topCurveHeight) / 2,
+          x + size / 2, y + topCurveHeight);
+        ctx.bezierCurveTo(x + size / 2, y,
+          x, y,
+          x, y + topCurveHeight);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.lineWidth = 3;
+        ctx.shadowColor = 'transparent';
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.stroke();
+      }
+    };
   }
 
-  // cracks
-  ctx.strokeStyle = 'rgba(40,28,12,0.7)'; ctx.lineWidth = 1.2;
-  for(let i=0;i<w;i+=6){
-    const cx = x + i + Math.sin(i*1.3 + y*0.02)*1.2;
-    ctx.beginPath(); ctx.moveTo(cx, y+2); ctx.lineTo(cx + Math.sin(i)*3, y + h - 2); ctx.stroke();
-  }
-
-  // roots for bottom
-  if(!isTop){
-    ctx.fillStyle = '#4a2f12';
-    const rootH = Math.min(18, h*0.12);
-    ctx.beginPath(); ctx.moveTo(x, y+h);
-    const steps = 6;
-    for(let s=0;s<=steps;s++){
-      const px = x + (s/steps)*w;
-      const py = y + h + Math.sin(s*1.8 + y*0.03)*rootH;
-      ctx.lineTo(px, py);
+  // Pipe class : troncs d'arbre cartoon détaillés
+  class Pipe {
+    constructor(x) {
+      this.x = x;
+      this.width = pipeWidth;
+      this.gap = pipeGap;
+      const minHeight = 80;
+      this.topHeight = minHeight + Math.random() * (H - groundHeight - this.gap - minHeight);
+      this.passed = false;
     }
-    ctx.lineTo(x+w, y+h); ctx.closePath(); ctx.fill();
-  }
-}
+    update() {
+      this.x -= pipeSpeed;
+    }
+    draw() {
+      // Top trunk
+      this.drawTrunk(this.x, 0, this.width, this.topHeight);
+      // Bottom trunk
+      const bottomY = this.topHeight + this.gap;
+      this.drawTrunk(this.x, bottomY, this.width, H - groundHeight - bottomY);
+    }
+    drawTrunk(x, y, width, height) {
+      // Corps du tronc
+      const trunkColor = '#6b4f2b';
+      const trunkShadow = '#4b3718';
 
-// Player (heart)
-function makePlayer(){
-  return {
-    x: W*0.25, y: H/2, baseSize: Math.max(36, Math.min(56, W*0.07)), size:0, vel:0, pulse:0, pulseDir:1,
-    update(){
-      this.vel += 0.6;
-      this.y += this.vel;
-      if(this.y + this.size/2 > H-groundH){ this.y = H-groundH - this.size/2; this.vel = 0; running=false; onGameOver(); }
-      if(this.y - this.size/2 < 0){ this.y = this.size/2; this.vel = 0; running=false; onGameOver(); }
-      this.pulse += 0.02 * this.pulseDir; if(this.pulse > 0.06 || this.pulse <-0.06) this.pulseDir *= -1;
-      this.size = this.baseSize * (1 + this.pulse);
-    },
-    jump(){
-      this.vel = -11.5; playJump();
-    },
-    draw(){
-      const x=this.x,y=this.y,s=this.size; const top = s*0.3;
-      ctx.save();
-      // shadow blur
-      ctx.shadowColor = 'rgba(0,0,0,0.2)'; ctx.shadowBlur = 10;
-      const grad = ctx.createLinearGradient(x-s/2,y-s/2,x+s/2,y+s/2);
-      grad.addColorStop(0,'#ff6b76'); grad.addColorStop(0.5,'#e63a46'); grad.addColorStop(1,'#9b1b1b');
-      ctx.fillStyle = grad;
+      ctx.fillStyle = trunkColor;
+      ctx.fillRect(x, y, width, height);
+
+      // Contours épais
+      ctx.strokeStyle = trunkShadow;
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x, y, width, height);
+
+      // Texture - anneaux de croissance
+      ctx.strokeStyle = '#8c6e3f';
+      ctx.lineWidth = 1.2;
+      const ringCount = Math.floor(height / 15);
+      for(let i=0; i<ringCount; i++){
+        ctx.beginPath();
+        const ringY = y + i*15 + 7;
+        ctx.ellipse(x + width/2, ringY, width*0.45, 5, 0, 0, 2*Math.PI);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Décor : montagnes, maisons, arbres en arrière-plan (plus simples)
+  const mountainColors = ['#4c704c', '#527953', '#6a8a6a'];
+  const mountainBaseY = () => H - groundHeight;
+
+  function drawMountains(time) {
+    const mountainWidth = W / 6;
+    for(let i = -1; i < 8; i++) {
+      const x = i * mountainWidth - (time * 0.2 % mountainWidth);
+      const peakHeight = 150 + 30 * Math.sin(i + time / 1000);
+      ctx.fillStyle = mountainColors[i % mountainColors.length];
       ctx.beginPath();
-      ctx.moveTo(x,y+top);
-      ctx.bezierCurveTo(x,y, x - s/2, y, x - s/2, y+top);
-      ctx.bezierCurveTo(x - s/2, y + (s + top)/2, x, y + (s + top)/1.2, x, y + s);
-      ctx.bezierCurveTo(x, y + (s + top)/1.2, x + s/2, y + (s + top)/2, x + s/2, y + top);
-      ctx.bezierCurveTo(x + s/2, y, x, y, x, y + top);
-      ctx.closePath(); ctx.fill();
-      // gloss
-      const rg = ctx.createRadialGradient(x - s*0.12, y - s*0.28, s*0.03, x - s*0.05, y - s*0.35, s*0.25);
-      rg.addColorStop(0,'rgba(255,255,255,0.7)'); rg.addColorStop(1,'rgba(255,255,255,0)');
-      ctx.fillStyle = rg; ctx.fill();
-      ctx.restore();
-      ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.stroke();
-    }
-  };
-}
-
-// Collision helper (circle vs rect approximation)
-function circleRectCollision(cx,cy,cr, rx,ry,rw,rh){
-  // find closest point
-  const closestX = Math.max(rx, Math.min(cx, rx+rw));
-  const closestY = Math.max(ry, Math.min(cy, ry+rh));
-  const dx = cx - closestX, dy = cy - closestY;
-  return (dx*dx + dy*dy) < (cr*cr);
-}
-
-// Game control
-function onGameOver(){
-  running = false;
-  gameOverBox.style.display = 'block';
-  if(score > best){ best = score; localStorage.setItem('flappy_heart_best', best); bestEl.textContent = 'Meilleur: ' + best; }
-}
-
-function reset(){
-  trunks = []; frame = 0; score = 0; speedMultiplier = 1; uiUpdate();
-  player = makePlayer();
-  initBackground();
-  recalc();
-  gameOverBox.style.display = 'none';
-  running = true;
-  if(animationId) cancelAnimationFrame(animationId);
-  lastTime = performance.now();
-  requestAnimationFrame(loop);
-}
-
-function uiUpdate(){ scoreEl.textContent = 'Score: ' + score; }
-
-// spawn logic using frames
-let spawnCounter = 0;
-function spawnIfNeeded(){
-  spawnCounter++;
-  if(spawnCounter >= spawnFrames){ spawnCounter = 0; trunks.push(new Trunk(W + 20)); }
-}
-
-// Update & Draw
-function update(dt){
-  // update background anims
-  clouds.forEach(c => { c.x += c.speed * dt * 0.03; c.alpha += 0.002 * (c.aDir); if(c.x - 200 > W) c.x = -120; if(c.alpha > 0.9 || c.alpha < 0.4) c.aDir *= -1; });
-  mountains.forEach(m=>{/* static */});
-  houses.forEach(h=>{ if(h.smokePhase !== undefined) h.smokePhase += dt*0.002; });
-  cars.forEach(car => { car.x += car.speed * (car.dir) * dt * 0.03; if(car.dir>0 && car.x > W+120) car.x = -120; if(car.dir<0 && car.x < -200) car.x = W+120; });
-  birdsBG.forEach(b=>{ b.x -= b.speed * dt * 0.03; b.phase += dt*0.01; if(b.x < -80) b.x = W + Math.random()*160; });
-
-  // trunks
-  trunks.forEach(t => t.update());
-  trunks = trunks.filter(t => t.x + t.w > -80);
-
-  spawnIfNeeded();
-
-  // player
-  player.update(dt);
-
-  // collisions & scoring
-  for(let t of trunks){
-    // scoring
-    if(!t.passed && t.x + t.w < player.x - 4){
-      t.passed = true; score++; uiUpdate(); playPoint(); if(score % 5 === 0) { speedMultiplier += 0.08; recalc(); }
-    }
-    // check collision top & bottom with circle approx
-    const cx = player.x, cy = player.y, cr = player.size/2 * 0.85;
-    if(circleRectCollision(cx,cy,cr, t.x, 0, t.w, t.topH) || circleRectCollision(cx,cy,cr, t.x, t.topH + t.gap, t.w, H - groundH - (t.topH + t.gap))){
-      running = false; onGameOver(); break;
+      ctx.moveTo(x, mountainBaseY());
+      ctx.lineTo(x + mountainWidth / 2, mountainBaseY() - peakHeight);
+      ctx.lineTo(x + mountainWidth, mountainBaseY());
+      ctx.closePath();
+      ctx.fill();
     }
   }
-}
 
-function draw(){
-  // sky
-  const sg = ctx.createLinearGradient(0,0,0,H); sg.addColorStop(0,'#bfe9ff'); sg.addColorStop(1,'#eaf8ff'); ctx.fillStyle = sg; ctx.fillRect(0,0,W,H);
-
-  // mountains (back)
-  mountains.forEach(m => {
-    const g = ctx.createLinearGradient(m.x, H-m.h, m.x, H);
-    g.addColorStop(0,'#9fbf8f'); g.addColorStop(1,'#6f8b5b');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.moveTo(m.x, H); ctx.lineTo(m.x + m.w/2, H - m.h); ctx.lineTo(m.x + m.w, H); ctx.closePath(); ctx.fill();
-    // small dark shadow
-    ctx.fillStyle = 'rgba(46,55,35,0.12)'; ctx.beginPath(); ctx.moveTo(m.x + m.w/4, H); ctx.lineTo(m.x + m.w/2, H - m.h*0.8); ctx.lineTo(m.x + m.w/2 + 6, H - m.h); ctx.lineTo(m.x + m.w*0.8, H); ctx.closePath(); ctx.fill();
-  });
-
-  // houses (mid)
-  houses.forEach(h => {
-    ctx.fillStyle = h.body; ctx.fillRect(h.x, h.y - h.h, h.w, h.h);
-    // roof
-    ctx.fillStyle = h.roof; ctx.beginPath(); ctx.moveTo(h.x - 6, h.y - h.h); ctx.lineTo(h.x + h.w/2, h.y - h.h - h.h*0.45); ctx.lineTo(h.x + h.w + 6, h.y - h.h); ctx.closePath(); ctx.fill();
-    // windows
-    ctx.fillStyle='#fff'; const wx = Math.min(16,h.w*0.18); ctx.fillRect(h.x + h.w*0.12, h.y - h.h + h.h*0.22, wx, wx); ctx.fillRect(h.x + h.w*0.6, h.y - h.h + h.h*0.22, wx, wx);
-    // smoke
-    if(h.smokePhase !== undefined){
-       const cx = h.x + h.w*0.75; const cy = h.y - h.h - h.h*0.15;
-       ctx.fillStyle = 'rgba(255,255,255,0.7)';
-       ctx.beginPath(); ctx.ellipse(cx + Math.sin(h.smokePhase)*6, cy - 10 - Math.cos(h.smokePhase)*8, 8, 6, 0,0,Math.PI*2); ctx.fill();
-       ctx.beginPath(); ctx.ellipse(cx + 10 + Math.cos(h.smokePhase*1.3)*10, cy - 26 - Math.sin(h.smokePhase*1.1)*10, 7,5,0,0,Math.PI*2); ctx.fill();
+  // Maisons stylisées
+  class House {
+    constructor(x, y, scale) {
+      this.x = x;
+      this.y = y;
+      this.scale = scale;
     }
-  });
+    draw() {
+      const x = this.x;
+      const y = this.y;
+      const s = this.scale;
 
-  // cars (road)
-  cars.forEach(c => {
-    ctx.fillStyle = c.color; roundRect(ctx, c.x, c.y - 12, 46, 20, 6); ctx.fill();
-    ctx.fillStyle = '#222'; ctx.beginPath(); ctx.ellipse(c.x + 12, c.y + 6, 5, 4,0,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(c.x + 34, c.y + 6, 5,4,0,0, Math.PI*2); ctx.fill();
-  });
+      // Corps maison
+      ctx.fillStyle = '#ffcd94';
+      ctx.strokeStyle = '#a8692a';
+      ctx.lineWidth = 3;
+      ctx.fillRect(x, y - 60 * s, 80 * s, 60 * s);
+      ctx.strokeRect(x, y - 60 * s, 80 * s, 60 * s);
 
-  // birds (bg)
-  birdsBG.forEach(b => { ctx.strokeStyle='#222'; ctx.lineWidth=2; ctx.beginPath(); const y=b.y + Math.sin(b.phase)*6; ctx.moveTo(b.x, y); ctx.quadraticCurveTo(b.x+12,y-8,b.x+24,y); ctx.stroke(); });
+      // Toit
+      ctx.fillStyle = '#d64545';
+      ctx.beginPath();
+      ctx.moveTo(x - 10 * s, y - 60 * s);
+      ctx.lineTo(x + 40 * s, y - 110 * s);
+      ctx.lineTo(x + 90 * s, y - 60 * s);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
 
-  // clouds
-  clouds.forEach(c => {
-    ctx.save(); ctx.globalAlpha = c.alpha;
-    const grad = ctx.createRadialGradient(c.x+40*c.s, c.y, 20*c.s, c.x+40*c.s, c.y, 70*c.s);
-    grad.addColorStop(0,'rgba(255,255,255,0.95)'); grad.addColorStop(1,'rgba(255,255,255,0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath(); ctx.ellipse(c.x, c.y, 40*c.s, 28*c.s, 0,0,2*Math.PI); ctx.ellipse(c.x+28*c.s, c.y-8*c.s, 30*c.s, 24*c.s, 0,0,2*Math.PI); ctx.ellipse(c.x+56*c.s, c.y+10*c.s, 30*c.s, 28*c.s, 0,0,2*Math.PI); ctx.fill(); ctx.restore();
-  });
-
-  // ground
-  const gh = groundH;
-  const gGr = ctx.createLinearGradient(0, H-gh, 0, H); gGr.addColorStop(0,'#2d572c'); gGr.addColorStop(1,'#4caf50');
-  ctx.fillStyle = gGr; ctx.fillRect(0, H-gh, W, gh);
-  // small blades
-  ctx.strokeStyle = '#1b3a16'; ctx.lineWidth = 2;
-  for(let i=0;i<W;i+=12){ const sway = Math.sin((i+frame*2)*0.01)*4; ctx.beginPath(); ctx.moveTo(i, H-gh); ctx.lineTo(i+sway, H-gh - 18); ctx.stroke(); }
-
-  // trunks
-  trunks.forEach(t => t.draw());
-
-  // player
-  player.draw();
-}
-
-// simple rounded rect helper
-function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
-
-// main loop
-function loop(now){
-  if(!lastTime) lastTime = now;
-  const dt = now - lastTime; lastTime = now;
-  if(running){
-    update(dt);
-    draw();
-    frame++;
-    animationId = requestAnimationFrame(loop);
-  } else {
-    draw();
-    // show overlay if game over
-    if(!running) gameOverBox.style.display = 'block';
+      // Fenêtres
+      ctx.fillStyle = '#f5f3ce';
+      ctx.fillRect(x + 10 * s, y - 40 * s, 25 * s, 25 * s);
+      ctx.fillRect(x + 45 * s, y - 40 * s, 25 * s, 25 * s);
+      ctx.strokeRect(x + 10 * s, y - 40 * s, 25 * s, 25 * s);
+      ctx.strokeRect(x + 45 * s, y - 40 * s, 25 * s, 25 * s);
+    }
   }
-}
-
-// Input handlers
-function onJump(){
-  // resume audio context at first interaction
-  if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-  if(!running){
-    reset();
-    return;
-  }
-  player.jump();
-}
-addEventListener('keydown', e => { if(e.code === 'Space' || e.code === 'ArrowUp'){ e.preventDefault(); onJump(); } }, {passive:false});
-addEventListener('mousedown', onJump);
-addEventListener('touchstart', e => { e.preventDefault(); onJump(); }, {passive:false});
-restartBtn.addEventListener('click', ()=>{ reset(); });
-
-// start the game for the first time
-recalc(); initBackground(); reset();
-
-// expose for debug in console
-window._flappy = { reset, player, trunks };
-
-</script>
-</body>
-</html>
+  const houses = [
+    new House(W * 0.1, H - groundHeight, 0.6),
+    new House(W * 0.35, H - groundHeight, 0.5),
+    new House(W * 0.65, H - groundHeight, 0.7),
+    new House(W * 1.1,
