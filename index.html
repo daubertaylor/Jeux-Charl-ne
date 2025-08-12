@@ -3,21 +3,21 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Flappy Heart - Message perso & détails animés</title>
+<title>Flappy Heart - Jeu détaillé avec message perso</title>
 <style>
   html, body {
     margin:0; padding:0; overflow:hidden;
-    background: linear-gradient(135deg, #8dd6f5 0%, #f9d5e5 100%);
+    background: linear-gradient(to top, #87ceeb 0%, #ffffff 100%);
     height: 100%;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   }
   canvas {
     display:block;
-    background: #a1c4fd;
     position: fixed;
     top:0; left:0;
     width: 100vw;
     height: 100vh;
+    background: #87ceeb;
   }
   #score {
     position: fixed;
@@ -27,7 +27,7 @@
     color: #2c3e50;
     font-size: 32px;
     font-weight: 700;
-    text-shadow: 1px 1px 4px #f9d5e5cc;
+    text-shadow: 1px 1px 4px #f0f8ffcc;
     user-select: none;
     pointer-events: none;
     z-index: 10;
@@ -37,7 +37,7 @@
     top: 40%;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(255 255 255 / 0.85);
+    background: rgba(255 255 255 / 0.95);
     padding: 30px 40px;
     border-radius: 20px;
     box-shadow: 0 8px 30px rgba(0,0,0,0.3);
@@ -72,7 +72,7 @@
 
 <div id="score">Score: 0</div>
 <div id="message">
-  <div id="msgText">T’inquiète ma chérie, tu vas y arriver ! ❤️</div>
+  <div id="msgText">Comme c’est pas grave mon amour, chaque essai te rapproche plus près du ciel.</div>
   <button id="restartBtn">Rejouer</button>
 </div>
 
@@ -104,19 +104,57 @@
 
   let bird, pipes, frameCount, score, gameOver;
 
-  // Dégradé de ciel animé
-  function drawSkyGradient(time) {
-    const gradient = ctx.createLinearGradient(0, 0, 0, H);
-    const r = 135 + 50 * Math.sin(time / 2000);
-    const g = 206 + 30 * Math.cos(time / 1500);
-    const b = 235 + 20 * Math.sin(time / 1800);
-    gradient.addColorStop(0, `rgb(${r},${g},${b})`);
-    gradient.addColorStop(1, `rgb(${r/2},${g/2},${b/2})`);
-    ctx.fillStyle = gradient;
+  // Dessin fond : ciel + soleil + horizon + montagnes + arbres éloignés
+  function drawBackground(time) {
+    // Ciel dégradé du matin doux
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+    skyGrad.addColorStop(0, '#87ceeb');
+    skyGrad.addColorStop(1, '#d0f0fd');
+    ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, W, H);
+
+    // Soleil (lent mouvement d'intensité)
+    const sunX = W * 0.85 + Math.sin(time / 3000) * 30;
+    const sunY = H * 0.15 + Math.cos(time / 3000) * 10;
+    const sunRadius = 60;
+    const sunGrad = ctx.createRadialGradient(sunX, sunY, sunRadius*0.4, sunX, sunY, sunRadius);
+    sunGrad.addColorStop(0, '#fff9e3');
+    sunGrad.addColorStop(1, '#ffd96700');
+    ctx.fillStyle = sunGrad;
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, sunRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Montagnes en arrière-plan
+    ctx.fillStyle = '#556b2f';
+    const mountainBaseY = H * 0.75;
+    const mountainWidth = W / 6;
+    for(let i = -1; i < 8; i++) {
+      let peakX = i * mountainWidth + (time / 30 % mountainWidth);
+      ctx.beginPath();
+      ctx.moveTo(peakX, mountainBaseY);
+      ctx.lineTo(peakX + mountainWidth / 2, mountainBaseY - 150 - 30 * Math.sin(i + time / 1000));
+      ctx.lineTo(peakX + mountainWidth, mountainBaseY);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Forêt d'arbres en fond (arrière-plan distant, en silhouette)
+    ctx.fillStyle = '#2e4a14';
+    const treeWidth = 30;
+    const treeHeight = 90;
+    for(let i=0; i < W; i += treeWidth * 2){
+      const sway = Math.sin(time / 1000 + i) * 5;
+      ctx.beginPath();
+      ctx.moveTo(i + sway, mountainBaseY);
+      ctx.lineTo(i + treeWidth/2 + sway, mountainBaseY - treeHeight);
+      ctx.lineTo(i + treeWidth + sway, mountainBaseY);
+      ctx.closePath();
+      ctx.fill();
+    }
   }
 
-  // Nuages plus doux et animés avec alpha variable
+  // Nuages doux et animés
   class Cloud {
     constructor(x, y, scale, speed) {
       this.x = x;
@@ -157,7 +195,7 @@
     new Cloud(W * 0.8, H * 0.23, 1.5, 0.25),
   ];
 
-  // Sol texturé avec dégradé et herbes animées (mouvements légers)
+  // Sol avec herbe animée
   const grassPoints = [];
   function initGrass() {
     grassPoints.length = 0;
@@ -195,15 +233,13 @@
     }
   }
 
-  // Dessine un coeur 3D stylisé, avec ombre et dégradé
+  // Coeur stylisé
   function drawHeart(x, y, size) {
     const topCurveHeight = size * 0.3;
 
-    // Ombre portée douce
     ctx.shadowColor = 'rgba(214,48,49,0.6)';
     ctx.shadowBlur = size * 0.15;
 
-    // Gradient rouge profond
     const grad = ctx.createLinearGradient(x - size/2, y, x + size/2, y + size);
     grad.addColorStop(0, '#e63946');
     grad.addColorStop(0.5, '#d62828');
@@ -227,26 +263,27 @@
     ctx.closePath();
     ctx.fill();
 
-    // Contour léger blanc
     ctx.lineWidth = 3;
     ctx.shadowColor = 'transparent';
     ctx.strokeStyle = 'rgba(255,255,255,0.8)';
     ctx.stroke();
   }
 
-  // Dessine un tronc texturé
+  // Troncs détaillés pour obstacles
   function drawTrunk(x, y, width, height) {
-    // Texture bois simple via lignes
-    const patternWidth = 6;
+    // Texture bois simple via lignes courbes
     ctx.fillStyle = '#5c3a1a';
     ctx.fillRect(x, y, width, height);
 
     ctx.strokeStyle = '#4b2f13';
     ctx.lineWidth = 1.5;
-    for(let i=0; i<height; i+=patternWidth){
+
+    // Lignes courbes horizontales pour texture
+    for(let i=0; i<height; i+=6){
       ctx.beginPath();
-      ctx.moveTo(x, y + i + (i%12 < 6 ? 0 : 3));
-      ctx.lineTo(x + width, y + i + (i%12 < 6 ? 0 : 3));
+      const offset = (i % 12 < 6) ? 0 : 3;
+      ctx.moveTo(x, y + i + offset);
+      ctx.bezierCurveTo(x + width/3, y + i + 10 + offset, x + 2*width/3, y + i - 10 + offset, x + width, y + i + offset);
       ctx.stroke();
     }
 
@@ -286,104 +323,4 @@
     }
     if (b.y + halfSize > H - H * 0.12 || b.y - halfSize < 0) return true;
 
-    return false;
-  }
-
-  // Dessine tout
-  function draw(time) {
-    drawSkyGradient(time);
-
-    for (const cloud of clouds) {
-      cloud.draw();
-      cloud.update();
-    }
-
-    drawGround(time);
-
-    for (const pipe of pipes) {
-      drawTrunk(pipe.x, 0, pipe.width, pipe.topHeight);
-      drawTrunk(pipe.x, pipe.topHeight + pipe.gap, pipe.width, H - (pipe.topHeight + pipe.gap) - H * 0.12);
-    }
-
-    drawHeart(bird.x, bird.y, bird.size);
-  }
-
-  // Mise à jour physique
-  function update() {
-    bird.velocity += gravity;
-    bird.y += bird.velocity;
-
-    if (frameCount % 90 === 0) createPipe();
-
-    for (let pipe of pipes) {
-      pipe.x -= pipeSpeed;
-    }
-
-    if (pipes.length && pipes[0].x + pipes[0].width < 0) {
-      pipes.shift();
-      score++;
-      scoreEl.textContent = "Score: " + score;
-    }
-  }
-
-  // Boucle principale
-  let lastTime = 0;
-  function loop(time = 0) {
-    if (!gameOver) {
-      update();
-      draw(time);
-      if (checkCollision()) {
-        gameOver = true;
-        messageEl.style.display = "block";
-      } else {
-        frameCount++;
-        requestAnimationFrame(loop);
-      }
-    }
-  }
-
-  // Contrôle
-  function flap() {
-    if (!gameOver) bird.velocity = lift;
-  }
-
-  // Initialisation
-  function resetGame() {
-    bird = {
-      x: W * 0.2,
-      y: H / 2,
-      size: Math.min(W,H) * 0.08,
-      velocity: 0,
-    };
-    pipes = [];
-    frameCount = 0;
-    score = 0;
-    gameOver = false;
-    scoreEl.textContent = "Score: 0";
-    messageEl.style.display = "none";
-    initGrass();
-  }
-
-  // Event listeners
-  window.addEventListener('keydown', e => {
-    if (e.code === 'Space' || e.code === 'ArrowUp') flap();
-  });
-  window.addEventListener('mousedown', flap);
-  window.addEventListener('touchstart', e => {
-    e.preventDefault();
-    flap();
-  }, { passive: false });
-
-  restartBtn.addEventListener('click', () => {
-    resetGame();
-    loop();
-  });
-
-  resetGame();
-  loop();
-
-})();
-</script>
-
-</body>
-</html>
+   
